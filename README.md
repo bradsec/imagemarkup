@@ -2,6 +2,8 @@
 
 Private, browser-based image annotation. Images stay on the device and the built app is static-hostable.
 
+Live application: [imagemarkup.com](https://imagemarkup.com/)
+
 ## Development
 
 Requires Node.js 22.12 or newer.
