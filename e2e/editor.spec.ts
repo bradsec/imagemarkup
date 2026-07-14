@@ -14,6 +14,21 @@ fixtureContext.fillStyle = '#f2cf45';
 fixtureContext.fillRect(160, 120, 160, 120);
 const imageBuffer = fixture.toBuffer('image/png');
 
+const browserErrors = new WeakMap<Page, string[]>();
+
+test.beforeEach(async ({ page }) => {
+  const errors: string[] = [];
+  browserErrors.set(page, errors);
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+  });
+  page.on('pageerror', (error) => errors.push(`page: ${error.message}`));
+});
+
+test.afterEach(async ({ page }) => {
+  expect(browserErrors.get(page)).toEqual([]);
+});
+
 async function loadImage(page: Page): Promise<void> {
   await page.goto('/');
   await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'quadrants.png', mimeType: 'image/png', buffer: imageBuffer });
@@ -55,6 +70,14 @@ async function canvasColorPixelCount(page: Page, color: [number, number, number]
     return count;
   }, color);
 }
+
+test('does not report browser errors when the pointer moves before an image is loaded', async ({ page }) => {
+  await page.goto('/');
+  const stage = await page.locator('.stage-host').boundingBox();
+  if (!stage) throw new Error('Stage is not visible');
+  await page.mouse.move(stage.x + 20, stage.y + 20);
+  await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 5 });
+});
 
 test('shows only the hint relevant to the active tool or selection', async ({ page }) => {
   await page.goto('/');

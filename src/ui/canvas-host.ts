@@ -522,12 +522,12 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   });
   function updateHoverCursor(e: PointerEvent): void {
     const scene = store.get();
-    if (scene.activeTool !== 'select') { canvas.style.cursor = ''; return; }
+    if (scene.activeTool !== 'select' || !scene.image) { canvas.style.cursor = ''; return; }
     const selected = scene.objects.find((object) => object.id === scene.selectedId);
     const image = screenToImage(anchorFromEvent(e), scene.viewport);
     const tolerance = (e.pointerType === 'touch' ? 14 : 8) / scene.viewport.scale;
     const handle = selected ? hitHandle(selected, image, tolerance) : null;
-    const insideArtboard = scene.showOverflow || (image.x >= 0 && image.y >= 0 && image.x <= scene.image!.width && image.y <= scene.image!.height);
+    const insideArtboard = scene.showOverflow || (image.x >= 0 && image.y >= 0 && image.x <= scene.image.width && image.y <= scene.image.height);
     canvas.style.cursor = handle ? HANDLE_CURSORS[handle] : (insideArtboard && hitTest(scene.objects, image, tolerance) ? 'move' : '');
   }
   host.addEventListener('pointermove', (e) => {
