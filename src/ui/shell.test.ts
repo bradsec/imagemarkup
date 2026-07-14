@@ -3,11 +3,14 @@ import { describe, it, expect } from 'vitest';
 import { renderShell } from './shell';
 
 describe('renderShell', () => {
-  it('renders the version without a repository link in the footer', () => {
+  it('renders the version and repository link in the footer', () => {
     const root = document.createElement('div');
     renderShell(root);
     expect(root.querySelector('.app-version')?.textContent).toContain('v');
-    expect(root.querySelector('footer a')).toBeNull();
+    const repoLink = root.querySelector<HTMLAnchorElement>('footer .repo-link');
+    expect(repoLink?.href).toBe('https://github.com/bradsec/imagemarkup');
+    expect(repoLink?.textContent).toBe('github.com/bradsec/imagemarkup');
+    expect(repoLink?.getAttribute('aria-label')).toBe('imagemarkup on GitHub');
   });
 
   it('returns a stage host and status element', () => {
@@ -135,7 +138,7 @@ describe('renderShell', () => {
     expect(root.querySelectorAll('h1')).toHaveLength(1);
     expect(root.querySelector('h1.brand')?.textContent).toContain('imagemarkup');
     expect(root.querySelector('#about-dialog a[href="https://buymeacoffee.com/markbradley"]')).toBeTruthy();
-    expect(root.querySelector('.app-menu a[href="https://buymeacoffee.com/markbradley"]')).toBeTruthy();
+    expect(root.querySelector('.app-menu a[href="https://buymeacoffee.com/markbradley"]')).toBeNull();
     expect(root.querySelector('#preferences-dialog [name="measurementUnit"]')).toBeTruthy();
     expect(root.querySelector('#preferences-dialog [data-preference="measurement-resolution"]')?.hasAttribute('hidden')).toBe(true);
     expect(root.querySelector('#preferences-dialog [name="selectionColor"]')).toBeTruthy();

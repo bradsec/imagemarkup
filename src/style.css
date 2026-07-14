@@ -513,6 +513,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .statusbar .status-tip { color: var(--text-faint); }
 .statusbar .spacer { flex: 1 1 auto; }
+.statusbar .repo-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); text-decoration: none; }
+.statusbar .repo-link:hover { color: var(--accent-hover); }
 .app-version { color: var(--text-faint); }
 
 dialog {

@@ -109,7 +109,6 @@ export function renderShell(root: HTMLElement): Shell {
           </div></details>
           <details class="app-menu"><summary>Help</summary><div class="menu-popover">
             <button type="button" data-action="about">About imagemarkup</button>
-            <a href="https://buymeacoffee.com/markbradley" target="_blank" rel="noopener noreferrer">Buy me a coffee</a>
           </div></details>
         </div>
         <div class="topbar-actions" aria-label="Quick actions">
@@ -220,6 +219,7 @@ export function renderShell(root: HTMLElement): Shell {
         <span id="status" aria-live="polite">Ready</span>
         <span class="status-tip" id="canvas-instructions"></span>
         <span class="spacer"></span>
+        <a class="repo-link" href="https://github.com/bradsec/imagemarkup" target="_blank" rel="noopener noreferrer" aria-label="imagemarkup on GitHub">${OCTOCAT}<span>github.com/bradsec/imagemarkup</span></a>
         <span class="app-version">v${__APP_VERSION__}</span>
       </footer>
       <dialog id="export-dialog" aria-labelledby="export-title">
