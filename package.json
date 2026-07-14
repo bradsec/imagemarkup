@@ -1,0 +1,32 @@
+{
+  "name": "imagemarkup",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "npm@11.10.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": "github:bradsec/imagemarkup",
+  "description": "Browser-based image annotation and markup editor. Fully client-side, static-hostable.",
+  "scripts": {
+    "dev": "vite",
+    "gen:icons": "node scripts/gen-icons.mjs",
+    "prebuild": "npm run gen:icons",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@napi-rs/canvas": "^1.0.0",
+    "@playwright/test": "^1.61.1",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
+  }
+}
