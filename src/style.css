@@ -111,7 +111,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   top: calc(100% - 4px);
   left: 0;
   display: grid;
-  width: 240px;
+  width: max-content;
+  max-width: calc(100vw - 16px);
   padding: 5px;
   border: 1px solid var(--border-strong);
   border-radius: 6px;
@@ -124,6 +125,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   min-height: 30px;
   align-items: center;
   justify-content: space-between;
+  gap: 24px;
   padding: 5px 8px;
   border: 0;
   border-radius: var(--radius);
@@ -131,6 +133,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   text-align: left;
   color: inherit;
   text-decoration: none;
+  white-space: nowrap;
 }
 .menu-popover button:hover, .menu-popover > a:hover { background: var(--accent-press); color: #f7fbfd; }
 .menu-popover button span { color: var(--text-faint); font-size: 11px; }
@@ -561,31 +564,45 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 .transform-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 
 @media (pointer: coarse) {
-  .toolrail button, .icon-button, .primary-action { min-height: 44px; }
+  .app-menu summary, .toolrail button, .icon-button, .primary-action { min-height: 44px; }
+  .icon-button { min-width: 44px; }
   .selection-dimensions input { min-height: 44px; }
+  .optionsbar button, .optionsbar select, .optionsbar input:not([type="range"]) { min-height: 40px; }
+  .optionsbar .color-presets button { width: 40px; min-width: 40px; }
+  .dialog-actions button, .transform-grid button { min-height: 44px; }
 }
 
 @media (max-width: 760px) {
-  :root { --header-height: 84px; --options-height: 48px; }
-  .app-header { flex-wrap: wrap; align-content: center; gap: 0; padding: 4px 7px; }
-  .menubar { width: 100%; height: 36px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
-  .topbar-actions { width: 100%; height: 36px; justify-content: flex-end; }
-  .selection-dimensions { top: 62px; }
-  .workspace { flex-direction: column; }
-  .toolrail {
-    order: 2;
-    display: flex;
-    flex-direction: row;
-    flex: 0 0 56px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 6px 8px max(6px, env(safe-area-inset-bottom));
-    border-top: 1px solid #101216;
-    border-right: 0;
+  :root { --header-height: calc(52px + env(safe-area-inset-top)); --options-height: 56px; }
+  .app-header {
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 0;
+    padding: calc(4px + env(safe-area-inset-top)) max(7px, env(safe-area-inset-right)) 3px max(7px, env(safe-area-inset-left));
   }
-  .tool-list { display: flex; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; }
+  .menubar { width: 100%; height: 44px; overflow: visible; }
+  .brand { flex: 0 0 auto; }
+  .app-menu { flex: 0 0 auto; }
+  .app-menu summary { padding-inline: 7px; }
+  .menu-popover { max-height: calc(100dvh - env(safe-area-inset-top) - 52px); overflow-y: auto; }
+  .app-menu:nth-last-child(-n + 3) .menu-popover { right: 0; left: auto; }
+  .topbar-actions { display: none; }
+  .workspace { flex-direction: row; padding-bottom: env(safe-area-inset-bottom); }
+  .toolrail {
+    order: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 calc(64px + env(safe-area-inset-left));
+    overflow: hidden;
+    padding: 8px 6px 6px max(6px, env(safe-area-inset-left));
+    border-top: 0;
+    border-right: 1px solid #101216;
+  }
+  .tool-list { display: grid; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y proximity; }
   .toolrail button { flex: 0 0 44px; width: 44px; height: 44px; }
-  .tool-colors { flex: 0 0 108px; width: 108px; height: 44px; grid-template-columns: repeat(4, 24px); grid-template-rows: 24px; gap: 4px; align-content: center; margin: 0 0 0 6px; padding: 0 0 0 6px; border-top: 0; border-left: 1px solid var(--border); }
+  .tool-list > button { scroll-snap-align: start; }
+  .tool-colors { flex: 0 0 58px; width: 52px; height: 58px; grid-template-columns: repeat(2, 24px); grid-template-rows: repeat(2, 24px); gap: 4px; align-content: start; margin: auto 0 0; padding: 6px 0 0; border-top: 1px solid var(--border); border-left: 0; }
+  .tool-colors input[type="color"], .tool-colors button { width: 24px; min-width: 24px; height: 24px; min-height: 24px; }
   .editor { min-height: 0; }
   .layers-panel { top: calc(var(--options-height) + 8px); right: 8px; width: min(260px, calc(100% - 16px)); height: min(52dvh, 420px); max-height: calc(100% - var(--options-height) - 16px); resize: none; }
   .layers-panel[data-collapsed="true"] { width: 190px; }
@@ -601,7 +618,7 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
     max-height: none;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 6px 8px;
+    padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
     border: 0;
     border-bottom: 1px solid #101216;
     border-radius: 0;
@@ -623,14 +640,18 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 }
 
 @media (max-width: 440px) {
-  .toolbar-divider, .topbar-actions [data-action="undo"], .topbar-actions [data-action="redo"],
-  .topbar-actions [data-action="zoom-in"], .topbar-actions [data-action="zoom-out"], .topbar-actions output { display: none; }
-  .primary-action { margin-left: 3px; }
-  .selection-dimensions { gap: 4px; }
-  .selection-dimensions input { width: 48px; }
-  .app-header:has(.selection-dimensions:not([hidden])) .topbar-actions [data-action="save-project"] { display: none; }
-  .app-header:has(.selection-dimensions:not([hidden])) .primary-action span { display: none; }
   .empty-state::before { height: min(260px, calc(100% - 48px)); }
+}
+
+@media (max-width: 340px) {
+  dialog { overflow-x: hidden; }
+  .dialog-form { min-width: 0; padding: 14px; }
+  .dialog-form > * { min-width: 0; }
+  .dialog-form input[type="file"] { width: 100%; min-width: 0; }
+  .dialog-form > .size-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .split-actions { grid-template-columns: 1fr 1fr; }
+  .split-actions > span { display: none; }
+  .split-actions > button:first-child { grid-column: 1 / -1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

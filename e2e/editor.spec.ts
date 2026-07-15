@@ -272,6 +272,10 @@ test('edits selected object dimensions using preferred units and an aspect-ratio
   const width = dimensions.locator('[data-selection-size="width"]');
   const height = dimensions.locator('[data-selection-size="height"]');
   const aspect = dimensions.locator('[data-action="toggle-selection-aspect"]');
+  if (await page.locator('.topbar-actions').isHidden()) {
+    await expect(dimensions).toBeHidden();
+    return;
+  }
   await expect(dimensions).toBeVisible();
   const initialWidth = Number(await width.inputValue());
   const initialHeight = Number(await height.inputValue());
@@ -316,7 +320,7 @@ test('supports visual line caps, persistent rail colors, and draggable options',
 
   await page.getByRole('button', { name: 'Butt line cap' }).click();
   await page.locator('[data-rail-color="color"]').fill('#00ff00');
-  await drag(page, [-180, -40], [-80, -40]);
+  await drag(page, [-120, -40], [-40, -40]);
   const scene = await saveScene(page);
   expect(scene.objects[0]).toMatchObject({ type: 'line', style: { color: '#00ff00', lineCap: 'butt' } });
 
@@ -856,7 +860,8 @@ test('toggles overflow visibility and explains transparent export behavior', asy
   await page.locator('input[accept^=".imgmarkup"]').setInputFiles({ name: 'overflow.imgmarkup', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
   await expect(page.locator('#status')).toHaveText('Project opened');
 
-  await page.getByRole('button', { name: /Export/ }).click();
+  await page.getByText('File', { exact: true }).click();
+  await page.locator('details[open]').getByRole('button', { name: /Export image/ }).click();
   await expect(page.locator('[data-export-overflow-note]')).toHaveText('Overflow expands the export with a transparent background.');
   const pngDownload = page.waitForEvent('download');
   await page.locator('#export-dialog button[value="download"]').click();
@@ -869,7 +874,8 @@ test('toggles overflow visibility and explains transparent export behavior', asy
   expect(decoded.getContext('2d').getImageData(325, 60, 1, 1).data[3]).toBe(0);
   expect(decoded.getContext('2d').getImageData(335, 60, 1, 1).data[0]).toBeGreaterThan(200);
 
-  await page.getByRole('button', { name: /Export/ }).click();
+  await page.getByText('File', { exact: true }).click();
+  await page.locator('details[open]').getByRole('button', { name: /Export image/ }).click();
   await page.locator('#export-dialog [name="format"]').selectOption('jpeg');
   await expect(page.locator('[data-export-overflow-note]')).toHaveText('Overflow expands the export; JPG fills transparent areas with white.');
   await page.locator('#export-dialog button[value="cancel"]').click();
@@ -891,7 +897,9 @@ test('applies crop from the contextual options bar', async ({ page }) => {
   await page.locator('.toolrail [data-tool="rect"]').click();
   await drag(page, [-100, -70], [-50, -20]);
   await page.locator('.toolrail [data-tool="crop"]').click();
+  await expect(page.getByRole('button', { name: 'Apply crop' })).toBeHidden();
   await drag(page, [-120, -80], [120, 80]);
+  await expect(page.getByRole('button', { name: 'Apply crop' })).toBeVisible();
   await page.getByRole('button', { name: 'Apply crop' }).click();
 
   const scene = await saveScene(page);
@@ -959,7 +967,8 @@ test('opens working image, frame, transform, and export menus', async ({ page })
   await expect(page.locator('#frame-dialog [data-action="toggle-watermark-bold"]')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('#frame-dialog button[value="cancel"]').click();
 
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.getByText('File', { exact: true }).click();
+  await page.locator('details[open]').getByRole('button', { name: /Export image/ }).click();
   await expect(page.locator('#export-dialog')).toBeVisible();
   const quality = page.locator('#export-dialog [name="quality"]');
   await expect(quality).toBeHidden();
@@ -1151,14 +1160,124 @@ test('pinch zoom does not leave a partial drawing object', async ({ page }) => {
 test.describe('mobile layout', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test('opens top menus above the workspace and switches menus with touch', async ({ page }) => {
+    await page.goto('/');
+    const fileSummary = page.locator('details.app-menu').filter({ hasText: /^File/ }).locator('summary');
+    const editSummary = page.locator('details.app-menu').filter({ hasText: /^Edit/ }).locator('summary');
+    const fileBox = await fileSummary.boundingBox();
+    const editBox = await editSummary.boundingBox();
+    if (!fileBox || !editBox) throw new Error('Menu summaries are not visible');
+
+    await page.touchscreen.tap(fileBox.x + fileBox.width / 2, fileBox.y + fileBox.height / 2);
+    await expect(fileSummary.locator('..')).toHaveAttribute('open', '');
+    await expect(page.getByRole('button', { name: /New project/ })).toBeInViewport();
+
+    await page.touchscreen.tap(editBox.x + editBox.width / 2, editBox.y + editBox.height / 2);
+    await expect(editSummary.locator('..')).toHaveAttribute('open', '');
+    await expect(fileSummary.locator('..')).not.toHaveAttribute('open', '');
+    await expect(page.getByRole('button', { name: /Undo/ })).toBeInViewport();
+  });
+
+  test('sizes each dropdown to its own content', async ({ page }) => {
+    await page.goto('/');
+    await page.getByText('File', { exact: true }).click();
+    const fileWidth = (await page.locator('details[open] .menu-popover').boundingBox())?.width ?? 0;
+    await page.keyboard.press('Escape');
+    await page.getByText('Help', { exact: true }).click();
+    const helpWidth = (await page.locator('details[open] .menu-popover').boundingBox())?.width ?? 0;
+    expect(helpWidth).toBeLessThan(fileWidth);
+    await expect(page.getByRole('button', { name: 'About imagemarkup' })).toBeInViewport();
+  });
+
+  test('keeps the File menu reachable in a short landscape viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 568, height: 320 });
+    await page.goto('/');
+    await page.getByText('File', { exact: true }).click();
+    const popover = page.locator('details[open] .menu-popover');
+    const box = await popover.boundingBox();
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(320);
+    await page.getByRole('button', { name: /Export image/ }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole('button', { name: /Export image/ })).toBeInViewport();
+  });
+
+  test('resizes from a visible handle with touch while the drawing tool stays active', async ({ page }) => {
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="rect"]').click();
+    await drag(page, [-60, -40], [60, 40]);
+    const center = await canvasCenter(page);
+
+    await page.locator('.stage-host').evaluate((host, points) => {
+      (host as HTMLElement).setPointerCapture = () => undefined;
+      const send = (type: string, x: number, y: number) => host.dispatchEvent(new PointerEvent(type, {
+        bubbles: true,
+        pointerId: 7,
+        pointerType: 'touch',
+        clientX: x,
+        clientY: y,
+      }));
+      send('pointerdown', points.startX, points.startY);
+      send('pointermove', points.endX, points.endY);
+      send('pointerup', points.endX, points.endY);
+    }, {
+      startX: center.x + 60,
+      startY: center.y + 40,
+      endX: center.x + 100,
+      endY: center.y + 80,
+    });
+
+    const scene = await saveScene(page);
+    expect(scene.activeTool).toBe('rect');
+    expect(scene.objects).toHaveLength(1);
+    expect(scene.objects[0].rect.w).toBeGreaterThan(120);
+    expect(scene.objects[0].rect.h).toBeGreaterThan(80);
+  });
+
+  test('returns tool options to their leading controls after switching tools', async ({ page }) => {
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="rect"]').click();
+    const options = page.locator('.optionsbar');
+    await options.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+    expect(await options.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+
+    await page.locator('.toolrail [data-tool="text"]').click();
+    await expect.poll(() => options.evaluate((element) => element.scrollLeft)).toBe(0);
+    await expect(options.locator('[data-style="color"]')).toBeInViewport();
+  });
+
+  test('keeps the frame dialog controls inside a 320 pixel viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await loadImage(page);
+    await page.getByText('Image', { exact: true }).click();
+    await page.locator('details[open]').getByRole('button', { name: 'Frame and watermark' }).click();
+
+    const dialog = page.locator('#frame-dialog');
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    for (const control of await dialog.locator('button').all()) {
+      const box = await control.boundingBox();
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320);
+    }
+  });
+
   test('keeps primary actions and every tool reachable', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('meta[name="viewport"]')).not.toHaveAttribute('content', /user-scalable=no/);
-    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
+    await expect(page.locator('.topbar-actions')).toBeHidden();
+    await expect(page.locator('.topbar-actions [data-action="zoom-in"]')).toBeHidden();
+    await expect(page.locator('.topbar-actions [data-action="save-project"]')).toBeHidden();
+    await expect(page.locator('.topbar-actions [data-action="export"]')).toBeHidden();
+    await page.getByText('File', { exact: true }).click();
+    await expect(page.locator('details[open]').getByRole('button', { name: /Export image/ })).toBeVisible();
+    await page.keyboard.press('Escape');
     const rail = page.locator('.toolrail');
-    await expect(rail).toHaveCSS('flex-direction', 'row');
+    await expect(rail).toHaveCSS('flex-direction', 'column');
     await page.locator('.toolrail [data-tool="symbol"]').scrollIntoViewIfNeeded();
     await expect(page.locator('.toolrail [data-tool="symbol"]')).toBeVisible();
-    expect((await page.locator('.toolrail [data-tool="select"]').boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const selectBox = await page.locator('.toolrail [data-tool="select"]').boundingBox();
+    expect(selectBox!.width).toBeGreaterThanOrEqual(44);
+    expect(selectBox!.height).toBeGreaterThanOrEqual(44);
+    const railBox = await rail.boundingBox();
+    expect((railBox?.x ?? -1) + (railBox?.width ?? 0)).toBeLessThanOrEqual(72);
+    const headerBox = await page.locator('.app-header').boundingBox();
+    expect(headerBox!.height).toBeLessThanOrEqual(53);
   });
 });

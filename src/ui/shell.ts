@@ -111,7 +111,7 @@ export function renderShell(root: HTMLElement): Shell {
             <button type="button" data-action="about">About imagemarkup</button>
           </div></details>
         </div>
-        <div class="topbar-actions" aria-label="Quick actions">
+        <div class="topbar-actions" role="group" aria-label="Quick actions">
           <div class="selection-dimensions" data-selection-dimensions aria-label="Selected object dimensions" hidden>
             <input type="number" min="0.01" step="1" inputmode="decimal" data-selection-size="width" aria-label="Selected object width">
             <span class="dimension-separator" aria-hidden="true">×</span>

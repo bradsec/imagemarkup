@@ -402,6 +402,21 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     if (current.kind === 'crop' || ((current.kind === 'move' || current.kind === 'resize' || current.kind === 'rotate') && current.changed)) history.record(current.before);
   }
 
+  function beginHandleGesture(scene: Scene, image: Point, tolerance: number): boolean {
+    const current = scene.objects.find((object) => object.id === scene.selectedId);
+    if (!current || current.locked) return false;
+    const handle = hitHandle(current, image, tolerance);
+    if (!handle) return false;
+    if (handle === 'rotate') {
+      const bounds = annotationBounds(current);
+      const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
+      gesture = { kind: 'rotate', id: current.id, object: current, center, startAngle: Math.atan2(image.y - center.y, image.x - center.x), before: scene, changed: false };
+    } else {
+      gesture = { kind: 'resize', id: current.id, handle, object: current, before: scene, changed: false };
+    }
+    return true;
+  }
+
   host.addEventListener('pointerdown', (e) => {
     const scene = store.get();
     if (!scene.image) return;
@@ -443,6 +458,8 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       pointers.delete(e.pointerId);
       return;
     }
+    const directManipulationTolerance = 14 / scene.viewport.scale;
+    if (e.pointerType === 'touch' && beginHandleGesture(scene, image, directManipulationTolerance)) return;
     if (scene.activeTool === 'text') {
       const tolerance = (e.pointerType === 'touch' ? 14 : 8) / scene.viewport.scale;
       const existing = hitTest(scene.objects, image, tolerance);
@@ -458,18 +475,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       gesture = { kind: 'pan', last: screen };
     } else if (scene.activeTool === 'select') {
       const tolerance = (e.pointerType === 'touch' ? 14 : 8) / scene.viewport.scale;
-      const current = scene.objects.find((object) => object.id === scene.selectedId);
-      const handle = current && hitHandle(current, image, tolerance);
-      if (current && handle) {
-        if (handle === 'rotate') {
-          const bounds = annotationBounds(current);
-          const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
-          gesture = { kind: 'rotate', id: current.id, object: current, center, startAngle: Math.atan2(image.y - center.y, image.x - center.x), before: scene, changed: false };
-        } else {
-          gesture = { kind: 'resize', id: current.id, handle, object: current, before: scene, changed: false };
-        }
-        return;
-      }
+      if (beginHandleGesture(scene, image, tolerance)) return;
       const insideArtboard = scene.showOverflow || (image.x >= 0 && image.y >= 0 && image.x <= scene.image.width && image.y <= scene.image.height);
       const selected = insideArtboard ? hitTest(scene.objects, image, tolerance) : null;
       const currentIds = selectionIds(scene);

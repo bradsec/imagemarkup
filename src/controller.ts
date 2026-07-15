@@ -182,7 +182,8 @@ export function startApp(root: HTMLElement): void {
     // on top of the first. Close the others whenever one opens.
     menu.addEventListener('toggle', () => { if (menu.open) closeMenus(menu); });
     // Once any menu is open, hovering a sibling switches to it, like a desktop menu bar.
-    menu.querySelector('summary')?.addEventListener('pointerenter', () => {
+    menu.querySelector('summary')?.addEventListener('pointerenter', (event) => {
+      if (event.pointerType !== 'mouse') return;
       if (!menu.open && appMenus.some((other) => other.open)) menu.open = true;
     });
   }
@@ -269,6 +270,7 @@ export function startApp(root: HTMLElement): void {
   const counterFont = root.querySelector<HTMLSelectElement>('[data-style="counter-font"]')!;
   const counterTextColor = root.querySelector<HTMLInputElement>('[data-style="counter-text-color"]')!;
   const optionsbar = root.querySelector<HTMLElement>('.optionsbar')!;
+  const applyCropButton = root.querySelector<HTMLButtonElement>('[data-action="apply-crop"]')!;
   const layersPanel = root.querySelector<HTMLElement>('.layers-panel')!;
   const layersList = root.querySelector<HTMLElement>('[data-layers-list]')!;
   const editorEl = root.querySelector<HTMLElement>('.editor')!;
@@ -444,6 +446,7 @@ export function startApp(root: HTMLElement): void {
       const groups = element.dataset.options!.split(' ');
       element.hidden = !groups.some((group) => visible.has(group) || (group === 'select' && context === 'select'));
     }
+    applyCropButton.hidden = context !== 'crop' || !scene.crop || scene.crop.w < 1 || scene.crop.h < 1;
     const activeButton = toolButtons.find((button) => button.dataset.tool === scene.activeTool);
     const multi = layerSelection.length > 1;
     const showSelectionDimensions = Boolean(selected) && !multi;
@@ -480,6 +483,7 @@ export function startApp(root: HTMLElement): void {
     if (optionsPanelContext !== context) {
       optionsPanelContext = context;
       setPanelPosition(optionsbar, panelLayout.tools[context]);
+      optionsbar.scrollLeft = 0;
     }
     if (hasOptions && activeButton && getComputedStyle(optionsbar).position === 'absolute' && optionsbar.dataset.moved !== 'true') {
       const button = activeButton.getBoundingClientRect();

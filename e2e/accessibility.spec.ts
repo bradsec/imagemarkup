@@ -101,5 +101,11 @@ test('bounds the expanded Layers palette on a narrow screen', async ({ page }) =
   expect(panel?.width).toBeLessThanOrEqual(260);
   expect(panel?.height).toBeLessThanOrEqual(704 * 0.52 + 1);
   expect(panel?.x).toBeGreaterThanOrEqual(0);
-  expect((panel?.y ?? 0) + (panel?.height ?? 0)).toBeLessThanOrEqual(tools?.y ?? 704);
+  const verticalTools = await page.locator('.toolrail').evaluate((element) => getComputedStyle(element).flexDirection === 'column');
+  if (verticalTools) {
+    expect(panel?.x).toBeGreaterThanOrEqual((tools?.x ?? 0) + (tools?.width ?? 0));
+    expect((panel?.y ?? 0) + (panel?.height ?? 0)).toBeLessThanOrEqual(704);
+  } else {
+    expect((panel?.y ?? 0) + (panel?.height ?? 0)).toBeLessThanOrEqual(tools?.y ?? 704);
+  }
 });
