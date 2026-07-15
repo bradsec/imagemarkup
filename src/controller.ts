@@ -156,7 +156,9 @@ export function startApp(root: HTMLElement): void {
   }
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="undo"]')) button.addEventListener('click', canvasHost.undo);
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="redo"]')) button.addEventListener('click', canvasHost.redo);
-  root.querySelector<HTMLButtonElement>('[data-action="open-image"]')!.addEventListener('click', () => canvasHost.openImage('replace'));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="open-image"]')) {
+    button.addEventListener('click', () => canvasHost.openImage('replace'));
+  }
   root.querySelector<HTMLButtonElement>('[data-action="new-project"]')!.addEventListener('click', () => {
     const scene = store.get();
     if ((scene.image || scene.objects.length > 0) && !window.confirm('Start a new project? This clears the current image and markup.')) return;

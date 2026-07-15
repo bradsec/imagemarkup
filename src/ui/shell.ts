@@ -201,11 +201,12 @@ export function renderShell(root: HTMLElement): Shell {
             <button type="button" role="menuitem" data-layer-context-action="delete">Delete layer <span>Delete</span></button>
           </div>
           <main class="stage-host" id="stage" data-active-tool="select" aria-label="Image editing canvas" aria-describedby="canvas-instructions" tabindex="0">
-            <button type="button" class="empty-state">
+            <div class="empty-state">
               <span class="empty-icon" aria-hidden="true">${icon('image-plus', 28)}</span>
               <strong>Open an image to start</strong>
+              <button type="button" class="empty-open-button" data-action="open-image">${icon('image-plus', 18)}<span>Load image</span></button>
               <span>Choose a file, drop it here, or paste from the clipboard</span>
-            </button>
+            </div>
             <div class="context-menu" id="canvas-context-menu" role="menu" hidden>
               <button type="button" role="menuitem" data-context-action="bring-front">Bring to front</button>
               <button type="button" role="menuitem" data-context-action="send-back">Send to back</button>

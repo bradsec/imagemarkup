@@ -79,6 +79,23 @@ test('does not report browser errors when the pointer moves before an image is l
   await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 5 });
 });
 
+test('opens the file picker only from the empty-state Load image button', async ({ page }) => {
+  await page.goto('/');
+  const loadButton = page.getByRole('button', { name: 'Load image' });
+  await expect(loadButton).toBeVisible();
+
+  let chooserOpened = false;
+  page.on('filechooser', () => { chooserOpened = true; });
+  await page.locator('.stage-host').click({ position: { x: 12, y: 12 } });
+  await page.waitForTimeout(100);
+  expect(chooserOpened).toBe(false);
+
+  const chooser = page.waitForEvent('filechooser');
+  await loadButton.click();
+  await (await chooser).setFiles({ name: 'initial.png', mimeType: 'image/png', buffer: imageBuffer });
+  await expect(page.locator('#status')).toContainText('320 x 240');
+});
+
 test('shows only the hint relevant to the active tool or selection', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#canvas-instructions')).toHaveText('');
@@ -1261,6 +1278,11 @@ test.describe('mobile layout', () => {
   test('keeps primary actions and every tool reachable', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('meta[name="viewport"]')).not.toHaveAttribute('content', /user-scalable=no/);
+    expect(await page.evaluate(() => {
+      const event = new Event('gesturestart', { bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      return event.defaultPrevented;
+    })).toBe(true);
     await expect(page.locator('.topbar-actions')).toBeHidden();
     await expect(page.locator('.topbar-actions [data-action="zoom-in"]')).toBeHidden();
     await expect(page.locator('.topbar-actions [data-action="save-project"]')).toBeHidden();
@@ -1279,5 +1301,25 @@ test.describe('mobile layout', () => {
     expect((railBox?.x ?? -1) + (railBox?.width ?? 0)).toBeLessThanOrEqual(72);
     const headerBox = await page.locator('.app-header').boundingBox();
     expect(headerBox!.height).toBeLessThanOrEqual(53);
+  });
+
+  test('keeps counter options intact and horizontally scrollable', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.toolrail [data-tool="counter"]').click();
+
+    const options = page.locator('.optionsbar');
+    await expect.poll(() => options.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    for (const row of [
+      options.locator('[data-choice-for="counter-shape"]'),
+      options.locator('[data-choice-for="counter-format"]'),
+    ]) {
+      const buttons = await row.locator('button').all();
+      expect(buttons).toHaveLength(3);
+      for (const button of buttons) {
+        const box = await button.boundingBox();
+        expect(box?.width).toBeGreaterThanOrEqual(40);
+        expect(box?.height).toBeGreaterThanOrEqual(40);
+      }
+    }
   });
 });

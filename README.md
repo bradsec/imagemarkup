@@ -24,7 +24,7 @@ npm run test:e2e
 
 ## Features
 
-- Paste, drop, or choose a base image; add more images as editable layers.
+- Load a base image from the centered button, paste it, or drop it on the editor; add more images as editable layers.
 - Preserve transparent PNG pixels while editing, cropping, resizing, and exporting PNG files, including transparency behind marks.
 - Keep off-canvas artwork hidden by default, or enable View > Show overflow to reveal it and expand PNG exports with a transparent background.
 - Set measurement units, document resolution, and a high-contrast selection color from File > Preferences. Preferences persist between browser sessions.
@@ -35,7 +35,7 @@ npm run test:e2e
 - Crop, resize, rotate, flip, add borders, and apply angled text or image watermarks. Resizing the base image scales every existing annotation with it, including non-proportional resizing. Text watermarks support the installed and uploaded font library, bold, italic, and overlap-safe tiling.
 - Autosave locally, import/export editable `.imgmarkup` projects, and upload local fonts.
 - Export PNG or JPG at 1x/2x, with a contextual JPG quality control, download, or copy PNG to the clipboard.
-- Mouse, keyboard, pen, and touch input, including cursor zoom and two-finger pinch/pan.
+- Mouse, keyboard, pen, and touch input, including cursor zoom and two-finger pinch/pan. On mobile, browser page zoom is disabled so pinch gestures remain dedicated to the image canvas and the editor controls stay reachable.
 
 ## Using the editor
 

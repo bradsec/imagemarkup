@@ -696,11 +696,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     if (object?.type === 'text') editText(object.id, true, screen);
   });
 
-  emptyState?.style.setProperty('pointer-events', 'auto');
-  emptyState?.addEventListener('click', () => {
-    fileIntent = 'replace';
-    fileInput.click();
-  });
   fileInput.addEventListener('change', async () => {
     const file = fileFromDataTransfer(null, fileInput.files);
     if (file) await load(file, fileIntent);
