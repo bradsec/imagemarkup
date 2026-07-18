@@ -4,6 +4,8 @@ Private, browser-based image annotation. Images stay on the device and the built
 
 Live application: [imagemarkup.com](https://imagemarkup.com/)
 
+![imagemarkup interface](screenshot.png)
+
 ## Development
 
 Requires Node.js 22.12 or newer.
