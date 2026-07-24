@@ -28,7 +28,7 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-action="reset-settings"]')).toBeTruthy();
     expect([...root.querySelectorAll('.app-menu')].find((menu) => menu.querySelector('summary')?.textContent === 'Help')?.textContent).not.toContain('GitHub repository');
     expect(root.querySelector('#about-dialog a[href="https://github.com/bradsec/imagemarkup"]')).toBeTruthy();
-    expect(root.querySelector('.about-support-copy')?.textContent).toBe('Found imagemarkup useful? Support the creator.');
+    expect(root.querySelector('.about-support-copy')?.textContent).toBe('If you find this useful, please consider starring the repository. It helps others discover the project.');
   });
 
   it('uses native disclosure and list semantics for composite controls', () => {
@@ -137,8 +137,7 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-action="preferences"]')).toBeTruthy();
     expect(root.querySelectorAll('h1')).toHaveLength(1);
     expect(root.querySelector('h1.brand')?.textContent).toContain('imagemarkup');
-    expect(root.querySelector('#about-dialog a[href="https://buymeacoffee.com/markbradley"]')).toBeTruthy();
-    expect(root.querySelector('.app-menu a[href="https://buymeacoffee.com/markbradley"]')).toBeNull();
+    expect(root.querySelectorAll('#about-dialog a')).toHaveLength(2);
     expect(root.querySelector('#preferences-dialog [name="measurementUnit"]')).toBeTruthy();
     expect(root.querySelector('#preferences-dialog [data-preference="measurement-resolution"]')?.hasAttribute('hidden')).toBe(true);
     expect(root.querySelector('#preferences-dialog [name="selectionColor"]')).toBeTruthy();

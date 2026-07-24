@@ -898,7 +898,7 @@ test('toggles overflow visibility and explains transparent export behavior', asy
   await page.locator('#export-dialog button[value="cancel"]').click();
 });
 
-test('opens About from Help and links to the creator, repository, and support page', async ({ page }) => {
+test('opens About from Help and links to the creator and repository', async ({ page }) => {
   await page.goto('/');
   await page.getByText('Help', { exact: true }).click();
   await page.locator('details[open]').getByRole('button', { name: 'About imagemarkup' }).click();
@@ -906,7 +906,8 @@ test('opens About from Help and links to the creator, repository, and support pa
   await expect(page.locator('#about-dialog')).toContainText('Created by Mark Bradley (BRADSEC).');
   await expect(page.locator('#about-dialog a', { hasText: 'BRADSEC' })).toHaveAttribute('href', 'https://github.com/bradsec');
   await expect(page.locator('#about-dialog a', { hasText: 'View imagemarkup on GitHub' })).toHaveAttribute('href', 'https://github.com/bradsec/imagemarkup');
-  await expect(page.locator('#about-dialog a', { hasText: 'Buy me a coffee' })).toHaveAttribute('href', 'https://buymeacoffee.com/markbradley');
+  await expect(page.locator('#about-dialog')).toContainText('If you find this useful, please consider starring the repository. It helps others discover the project.');
+  await expect(page.locator('#about-dialog a')).toHaveCount(2);
 });
 
 test('applies crop from the contextual options bar', async ({ page }) => {

@@ -4,9 +4,6 @@ import type { SymbolName } from '../core/types';
 
 const OCTOCAT =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>';
-const COFFEE_ICON =
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h12v7a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M16 10h2a3 3 0 0 1 0 6h-2M7 4v1m4-1v1m4-1v1"/></svg>';
-
 const COMMON_COLORS = [
   ['Black', '#000000'], ['White', '#ffffff'],
   ['Dark red', '#c00000'], ['Red', '#ff0000'], ['Orange', '#ffc000'], ['Yellow', '#ffff00'],
@@ -239,8 +236,7 @@ export function renderShell(root: HTMLElement): Shell {
           <p>A private, browser-based image annotation editor. Images and projects remain on your device unless you choose to share them.</p>
           <p>Created by Mark Bradley (<a href="https://github.com/bradsec" target="_blank" rel="noopener noreferrer">BRADSEC</a>).</p>
           <a class="about-repo-link" href="https://github.com/bradsec/imagemarkup" target="_blank" rel="noopener noreferrer">${OCTOCAT}<span>View imagemarkup on GitHub</span></a>
-          <p class="about-support-copy">Found imagemarkup useful? Support the creator.</p>
-          <a class="about-repo-link" href="https://buymeacoffee.com/markbradley" target="_blank" rel="noopener noreferrer">${COFFEE_ICON}<span>Buy me a coffee</span></a>
+          <p class="about-support-copy">If you find this useful, please consider starring the repository. It helps others discover the project.</p>
           <div class="dialog-actions"><button value="close">Close</button></div>
         </form>
       </dialog>
