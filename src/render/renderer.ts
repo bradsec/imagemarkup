@@ -1,6 +1,8 @@
-import type { Annotation, ArrowHead, CounterFormat, Scene, SymbolAnnotation, Watermark } from '../core/types';
+import { isPathAnnotation, type Annotation, type ArrowHead, type CounterFormat, type Scene, type SymbolAnnotation, type Watermark } from '../core/types';
 import { annotationBounds, annotationHandles, annotationVisualBounds } from '../core/annotations';
 import { MATERIAL_SYMBOLS } from '../core/material-symbols';
+import { graphemes, textLineHeight, textSpacing, textWidth } from '../core/text-layout';
+import { polygonVertices, starVertices } from '../core/symbol-geometry';
 import type { Rect } from '../core/geometry';
 export type { Surface } from './surface';
 import type { Surface } from './surface';
@@ -119,12 +121,12 @@ export function drawWatermark(ctx: CanvasRenderingContext2D, watermark: Watermar
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const metrics = ctx.measureText(watermark.text);
-    const textWidth = Math.max(1, metrics.width);
+    const measuredWidth = Math.max(1, metrics.width);
     const textHeight = Math.max(watermark.size, metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
     const cos = Math.abs(Math.cos(angle));
     const sin = Math.abs(Math.sin(angle));
-    const rotatedWidth = textWidth * cos + textHeight * sin;
-    const rotatedHeight = textWidth * sin + textHeight * cos;
+    const rotatedWidth = measuredWidth * cos + textHeight * sin;
+    const rotatedHeight = measuredWidth * sin + textHeight * cos;
     const maxWidth = watermark.tile ? width * .62 : Math.max(1, width - 32);
     const maxHeight = watermark.tile ? height * .35 : Math.max(1, height - 32);
     const markScale = Math.min(1, maxWidth / rotatedWidth, maxHeight / rotatedHeight);
@@ -229,7 +231,7 @@ export function counterLabel(value: number, format: CounterFormat = 'numeric'): 
   return label;
 }
 
-function drawAnnotation(ctx: CanvasRenderingContext2D, object: Annotation): void {
+export function drawAnnotation(ctx: CanvasRenderingContext2D, object: Annotation): void {
   ctx.save();
   if (object.rotation) {
     const bounds = annotationBounds(object);
@@ -269,7 +271,7 @@ function drawAnnotation(ctx: CanvasRenderingContext2D, object: Annotation): void
     else ctx.rect(x, y, w, h);
     if (object.style.fill) { ctx.fillStyle = object.style.fill; ctx.fill(); }
     if (object.style.stroke !== false) ctx.stroke();
-  } else if ('points' in object) {
+  } else if (isPathAnnotation(object)) {
     ctx.beginPath();
     const [first, ...rest] = object.points;
     if (first) ctx.moveTo(first.x, first.y);
@@ -292,28 +294,46 @@ function drawAnnotation(ctx: CanvasRenderingContext2D, object: Annotation): void
     ctx.fillStyle = object.style.color;
     if (object.type === 'text') {
       ctx.font = `${object.fontStyle ?? 'normal'} ${object.fontWeight} ${object.fontSize}px "${object.fontFamily}"`;
-      ctx.textAlign = object.align === 'justify' ? 'left' : object.align;
+      ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      const lineHeight = object.fontSize * 1.2;
+      const lineHeight = textLineHeight(object.fontSize, object.lineHeight);
       const lines = object.text.split('\n');
-      const targetWidth = Math.max(0, ...lines.map((line) => ctx.measureText(line).width));
+      const measure = (value: string) => ctx.measureText(value).width;
+      const width = (value: string) => textWidth(value, object.fontSize, object.letterSpacing, measure);
+      const targetWidth = Math.max(0, ...lines.map(width));
+      const spacing = textSpacing(object.fontSize, object.letterSpacing);
+      const nativeSpacing = spacing !== 0 && typeof CanvasRenderingContext2D !== 'undefined' && 'letterSpacing' in CanvasRenderingContext2D.prototype;
+      const drawText = (value: string, x: number, y: number) => {
+        if (!spacing || nativeSpacing) {
+          if (nativeSpacing) ctx.letterSpacing = `${spacing}px`;
+          ctx.fillText(value, x, y);
+          if (nativeSpacing) ctx.letterSpacing = '0px';
+          return;
+        }
+        for (const glyph of graphemes(value)) {
+          ctx.fillText(glyph, x, y);
+          x += measure(glyph) + spacing;
+        }
+      };
       lines.forEach((line, index) => {
         const y = object.position.y + index * lineHeight;
         const words = line.trim().split(/\s+/).filter(Boolean);
         const shouldJustify = object.align === 'justify' && index < lines.length - 1 && words.length > 1;
         if (shouldJustify) {
-          const wordsWidth = words.reduce((total, word) => total + ctx.measureText(word).width, 0);
+          const wordsWidth = words.reduce((total, word) => total + width(word), 0);
           const gap = (targetWidth - wordsWidth) / (words.length - 1);
           let x = object.position.x;
           for (const word of words) {
-            ctx.fillText(word, x, y);
-            x += ctx.measureText(word).width + gap;
+            drawText(word, x, y);
+            x += width(word) + gap;
           }
         } else {
-          ctx.fillText(line, object.position.x, y);
+          const lineWidth = width(line);
+          const x = object.align === 'center' ? object.position.x - lineWidth / 2 : object.align === 'right' || object.align === 'end' ? object.position.x - lineWidth : object.position.x;
+          drawText(line, x, y);
         }
         if (object.underline && line) {
-          const lineWidth = shouldJustify ? targetWidth : ctx.measureText(line).width;
+          const lineWidth = shouldJustify ? targetWidth : width(line);
           const startX = object.align === 'center' ? object.position.x - lineWidth / 2 : object.align === 'right' || object.align === 'end' ? object.position.x - lineWidth : object.position.x;
           ctx.fillRect(startX, y + object.fontSize * 0.1, lineWidth, Math.max(1, object.fontSize / 16));
         }
@@ -423,6 +443,19 @@ function drawArrowHead(ctx: CanvasRenderingContext2D, tip: { x: number; y: numbe
 
 function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): void {
   const { x, y, w, h } = object.rect;
+  if ((object.name === 'star' && (object.points !== undefined || object.innerRatio !== undefined)) || (object.name === 'hexagon' && object.sides !== undefined)) {
+    const vertices = object.name === 'star' ? starVertices(object.points ?? 5, object.innerRatio ?? 0.43) : polygonVertices(object.sides ?? 6);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(w / 100 || 1, h / 100 || 1);
+    ctx.beginPath();
+    vertices.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+    ctx.closePath();
+    if (object.style.fill) { ctx.fillStyle = object.style.fill; ctx.fill(); }
+    if (object.style.stroke !== false) ctx.stroke();
+    ctx.restore();
+    return;
+  }
   const symbol = MATERIAL_SYMBOLS[object.name];
   if (symbol) {
     const path = new Path2D(symbol.path);
@@ -455,14 +488,12 @@ function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): vo
   if (object.name === 'triangle') { ctx.moveTo(50, 10); ctx.lineTo(92, 88); ctx.lineTo(8, 88); ctx.closePath(); }
   if (object.name === 'square') ctx.rect(14, 14, 72, 72);
   if (object.name === 'diamond') { ctx.moveTo(50, 7); ctx.lineTo(93, 50); ctx.lineTo(50, 93); ctx.lineTo(7, 50); ctx.closePath(); }
-  if (object.name === 'hexagon') { ctx.moveTo(27, 10); ctx.lineTo(73, 10); ctx.lineTo(94, 50); ctx.lineTo(73, 90); ctx.lineTo(27, 90); ctx.lineTo(6, 50); ctx.closePath(); }
   if (object.name === 'plus') { ctx.moveTo(50, 12); ctx.lineTo(50, 88); ctx.moveTo(12, 50); ctx.lineTo(88, 50); }
   if (object.name === 'minus') { ctx.moveTo(12, 50); ctx.lineTo(88, 50); }
   if (object.name === 'exclamation') { ctx.moveTo(50, 12); ctx.lineTo(50, 64); ctx.moveTo(50, 84); ctx.lineTo(50, 86); }
   if (object.name === 'question') { ctx.moveTo(25, 30); ctx.bezierCurveTo(30, 5, 75, 5, 75, 32); ctx.bezierCurveTo(75, 52, 50, 52, 50, 68); ctx.moveTo(50, 86); ctx.lineTo(50, 88); }
   if (object.name === 'info') { ctx.arc(50, 50, 40, 0, Math.PI * 2); ctx.moveTo(50, 42); ctx.lineTo(50, 75); ctx.moveTo(50, 25); ctx.lineTo(50, 27); }
   if (object.name === 'warning') { ctx.moveTo(50, 7); ctx.lineTo(94, 89); ctx.lineTo(6, 89); ctx.closePath(); ctx.moveTo(50, 34); ctx.lineTo(50, 62); ctx.moveTo(50, 76); ctx.lineTo(50, 78); }
-  if (object.name === 'star') { for (let i = 0; i < 10; i++) { const angle = -Math.PI / 2 + i * Math.PI / 5; const radius = i % 2 ? 18 : 42; const px = 50 + Math.cos(angle) * radius; const py = 50 + Math.sin(angle) * radius; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); }
   if (object.name === 'heart') { ctx.moveTo(50, 88); ctx.bezierCurveTo(40, 74, 12, 58, 12, 34); ctx.bezierCurveTo(12, 8, 42, 8, 50, 27); ctx.bezierCurveTo(58, 8, 88, 8, 88, 34); ctx.bezierCurveTo(88, 58, 60, 74, 50, 88); }
   if (object.name === 'arrow-up') { ctx.moveTo(50, 90); ctx.lineTo(50, 14); ctx.moveTo(18, 46); ctx.lineTo(50, 14); ctx.lineTo(82, 46); }
   if (object.name === 'arrow-down') { ctx.moveTo(50, 10); ctx.lineTo(50, 86); ctx.moveTo(18, 54); ctx.lineTo(50, 86); ctx.lineTo(82, 54); }
@@ -587,6 +618,13 @@ export function renderScene(s: Surface, scene: Scene): void {
   }
   if (scene.crop && scene.crop.w > 0 && scene.crop.h > 0) {
     const { x, y, w, h } = scene.crop;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, .5)';
+    ctx.fillRect(0, 0, scene.image.width, y);
+    ctx.fillRect(0, y, x, h);
+    ctx.fillRect(x + w, y, scene.image.width - x - w, h);
+    ctx.fillRect(0, y + h, scene.image.width, scene.image.height - y - h);
+    ctx.restore();
     ctx.strokeStyle = selectionColor;
     ctx.lineWidth = 1.5 / scale;
     ctx.setLineDash([8 / scale, 5 / scale]);
@@ -600,6 +638,19 @@ export function renderScene(s: Surface, scene: Scene): void {
     ctx.moveTo(x, y + h * 2 / 3); ctx.lineTo(x + w, y + h * 2 / 3);
     ctx.stroke();
     ctx.globalAlpha = 1;
+    const fake = { id: 'crop', type: 'rect' as const, rect: scene.crop, style: scene.toolStyle };
+    const handleSize = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 14 : 8) / scale;
+    ctx.fillStyle = selectionColor;
+    for (const { handle, point } of annotationHandles(fake)) if (handle !== 'rotate') ctx.fillRect(point.x - handleSize / 2, point.y - handleSize / 2, handleSize, handleSize);
+    const label = `${Math.round(w)} x ${Math.round(h)} px`;
+    ctx.font = `${12 / scale}px system-ui`;
+    const labelWidth = ctx.measureText(label).width + 12 / scale;
+    const labelX = Math.max(0, Math.min(x, scene.image.width - labelWidth));
+    const labelY = y > 26 / scale ? y - 23 / scale : Math.min(scene.image.height - 20 / scale, y + h + 4 / scale);
+    ctx.fillStyle = 'rgba(0, 0, 0, .8)';
+    ctx.fillRect(labelX, labelY, labelWidth, 19 / scale);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, labelX + 6 / scale, labelY + 14 / scale);
   }
   ctx.restore();
 }

@@ -57,14 +57,20 @@ function readAsDataUrl(file: File): Promise<string> {
 
 /** Decode an image file to a drawable bitmap plus a persistable data URL. */
 export async function decodeImageFile(file: File): Promise<LoadedImage> {
-  if (!isImageFile(file) || file.size > 100 * 1024 * 1024) throw new Error('Choose an image under 100 MB');
-  const bitmap = checkedBitmap(await createImageBitmap(file));
+  if (!isImageFile(file)) throw new Error('Unsupported image type');
+  if (file.size > 100 * 1024 * 1024) throw new Error('Choose an image under 100 MB');
+  let bitmap: ImageBitmap;
+  try { bitmap = checkedBitmap(await createImageBitmap(file)); }
+  catch (error) {
+    if (error instanceof Error && error.message === 'Image dimensions are too large') throw error;
+    throw new Error('Could not decode that image', { cause: error });
+  }
   let dataUrl: string;
   try {
     dataUrl = await readAsDataUrl(file);
-  } catch (error) {
+  } catch {
     bitmap.close();
-    throw error;
+    throw new Error('Could not read that image');
   }
   return { source: bitmap, width: bitmap.width, height: bitmap.height, dataUrl };
 }

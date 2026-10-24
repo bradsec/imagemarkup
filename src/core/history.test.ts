@@ -22,4 +22,22 @@ describe('AnnotationHistory', () => {
     scene.objects.push(rect('2'));
     expect(history.redo(scene)).toBeNull();
   });
+
+  it('tracks bitmap sources in past and future snapshots', () => {
+    const history = new AnnotationHistory();
+    const scene = createScene();
+    const imageSource = {} as CanvasImageSource;
+    const objectSource = {} as CanvasImageSource;
+    const watermarkSource = {} as CanvasImageSource;
+    scene.image = { source: imageSource, width: 10, height: 10, dataUrl: '' };
+    scene.objects = [{ id: 'image', type: 'image', rect: { x: 0, y: 0, w: 10, h: 10 }, dataUrl: '', source: objectSource, style: { color: '#000', width: 1, opacity: 1 } }];
+    scene.watermark = { kind: 'image', dataUrl: '', source: watermarkSource, scale: 1, opacity: 1, tile: false };
+    history.record(scene);
+    expect(history.sources()).toEqual(new Set([imageSource, objectSource, watermarkSource]));
+    history.record(createScene());
+    history.undo(scene);
+    expect(history.sources()).toEqual(new Set([imageSource, objectSource, watermarkSource]));
+    history.clear();
+    expect(history.sources().size).toBe(0);
+  });
 });

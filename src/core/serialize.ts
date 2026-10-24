@@ -1,5 +1,6 @@
 import type { Annotation, AnnotationStyle, Scene, Tool } from './types';
 import type { Point, Rect, Viewport } from './geometry';
+import { MATERIAL_SYMBOLS } from './material-symbols';
 
 export const PROJECT_VERSION = 1;
 export const MAX_PROJECT_FILE_BYTES = 110_000_000;
@@ -18,10 +19,15 @@ export interface SerializedScene {
   watermark: Scene['watermark'];
   showOverflow?: boolean;
   symbolName: Scene['symbolName'];
+  symbolPoints?: number;
+  symbolInnerRatio?: number;
+  symbolSides?: number;
   arrowStartHead?: Scene['arrowStartHead'];
   arrowEndHead?: Scene['arrowEndHead'];
   fontFamily: string;
   fontSize: number;
+  letterSpacing?: number;
+  lineHeight?: number;
   fontWeight: Scene['fontWeight'];
   fontStyle?: Scene['fontStyle'];
   textUnderline?: boolean;
@@ -45,6 +51,7 @@ const symbols = [
   'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right',
   'lightning', 'flag', 'pin', 'target', 'speech', 'eye',
   'hand-stop', 'hand-point-left', 'hand-point-right',
+  ...Object.keys(MATERIAL_SYMBOLS),
 ];
 const arrowHeads = ['none', 'open', 'triangle', 'stealth', 'circle'];
 
@@ -89,7 +96,9 @@ function annotation(value: unknown): value is Annotation {
     || (value.flipY !== undefined && typeof value.flipY !== 'boolean')) return false;
   if (value.type === 'rect' || value.type === 'ellipse') return rect(value.rect);
   if (value.type === 'image') return rect(value.rect) && typeof value.dataUrl === 'string' && value.dataUrl.startsWith('data:image/');
-  if (value.type === 'symbol') return rect(value.rect) && typeof value.name === 'string' && symbols.includes(value.name);
+  if (value.type === 'symbol') return rect(value.rect) && typeof value.name === 'string' && symbols.includes(value.name)
+    && (value.points === undefined || finite(value.points)) && (value.innerRatio === undefined || finite(value.innerRatio))
+    && (value.sides === undefined || finite(value.sides));
   if (value.type === 'line' || value.type === 'arrow') return point(value.start) && point(value.end)
     && (value.startHead === undefined || arrowHeads.includes(String(value.startHead)))
     && (value.endHead === undefined || arrowHeads.includes(String(value.endHead)));
@@ -98,6 +107,8 @@ function annotation(value: unknown): value is Annotation {
     && typeof value.text === 'string' && value.text.length <= 10_000
     && typeof value.fontFamily === 'string' && value.fontFamily.length <= 200
     && finite(value.fontSize) && value.fontSize > 0 && value.fontSize <= 1_000
+    && (value.letterSpacing === undefined || finite(value.letterSpacing))
+    && (value.lineHeight === undefined || finite(value.lineHeight))
     && (value.fontWeight === 'normal' || value.fontWeight === 'bold')
     && (value.fontStyle === undefined || value.fontStyle === 'normal' || value.fontStyle === 'italic')
     && (value.underline === undefined || typeof value.underline === 'boolean')
@@ -151,10 +162,15 @@ function valid(value: unknown): value is SerializedScene {
       && (value.watermark.angle === undefined || (finite(value.watermark.angle) && value.watermark.angle >= -180 && value.watermark.angle <= 180))))
     && (value.showOverflow === undefined || typeof value.showOverflow === 'boolean')
     && typeof value.symbolName === 'string' && symbols.includes(value.symbolName)
+    && (value.symbolPoints === undefined || finite(value.symbolPoints))
+    && (value.symbolInnerRatio === undefined || finite(value.symbolInnerRatio))
+    && (value.symbolSides === undefined || finite(value.symbolSides))
     && (value.arrowStartHead === undefined || arrowHeads.includes(String(value.arrowStartHead)))
     && (value.arrowEndHead === undefined || arrowHeads.includes(String(value.arrowEndHead)))
     && typeof value.fontFamily === 'string' && value.fontFamily.length <= 200
     && finite(value.fontSize) && value.fontSize > 0 && value.fontSize <= 1_000
+    && (value.letterSpacing === undefined || finite(value.letterSpacing))
+    && (value.lineHeight === undefined || finite(value.lineHeight))
     && (value.fontWeight === 'normal' || value.fontWeight === 'bold')
     && (value.fontStyle === undefined || value.fontStyle === 'normal' || value.fontStyle === 'italic')
     && (value.textUnderline === undefined || typeof value.textUnderline === 'boolean')
@@ -185,10 +201,15 @@ export function serializeScene(scene: Scene): string {
     watermark: scene.watermark,
     showOverflow: scene.showOverflow,
     symbolName: scene.symbolName,
+    symbolPoints: scene.symbolPoints,
+    symbolInnerRatio: scene.symbolInnerRatio,
+    symbolSides: scene.symbolSides,
     arrowStartHead: scene.arrowStartHead,
     arrowEndHead: scene.arrowEndHead,
     fontFamily: scene.fontFamily,
     fontSize: scene.fontSize,
+    letterSpacing: scene.letterSpacing,
+    lineHeight: scene.lineHeight,
     fontWeight: scene.fontWeight,
     fontStyle: scene.fontStyle,
     textUnderline: scene.textUnderline,
@@ -209,7 +230,7 @@ export function serializeScene(scene: Scene): string {
   return JSON.stringify(dto);
 }
 
-export function parseScene(json: string): SerializedScene & { arrowStartHead: Scene['arrowStartHead']; arrowEndHead: Scene['arrowEndHead'] } {
+export function parseScene(json: string): SerializedScene & Pick<Scene, 'arrowStartHead' | 'arrowEndHead' | 'letterSpacing' | 'lineHeight' | 'symbolPoints' | 'symbolInnerRatio' | 'symbolSides'> {
   let value: unknown;
   try {
     value = JSON.parse(json);
@@ -220,9 +241,18 @@ export function parseScene(json: string): SerializedScene & { arrowStartHead: Sc
   return {
     ...value,
     fontSize: Math.ceil(value.fontSize),
+    letterSpacing: Math.max(-200, Math.min(1000, Math.round(value.letterSpacing ?? 0))),
+    lineHeight: Math.max(0.5, Math.min(3, value.lineHeight ?? 1.2)),
+    symbolPoints: Math.max(3, Math.min(24, Math.round(value.symbolPoints ?? 5))),
+    symbolInnerRatio: Math.max(0.2, Math.min(0.9, value.symbolInnerRatio ?? 0.43)),
+    symbolSides: Math.max(3, Math.min(12, Math.round(value.symbolSides ?? 6))),
     showOverflow: value.showOverflow ?? false,
     arrowStartHead: value.arrowStartHead ?? 'none',
     arrowEndHead: value.arrowEndHead ?? 'open',
-    objects: value.objects.map((object) => object.type === 'text' ? { ...object, fontSize: Math.ceil(object.fontSize) } : object),
+    objects: value.objects.map((object) => object.type === 'text'
+      ? { ...object, fontSize: Math.ceil(object.fontSize), letterSpacing: Math.max(-200, Math.min(1000, Math.round(object.letterSpacing ?? 0))), lineHeight: Math.max(0.5, Math.min(3, object.lineHeight ?? 1.2)) }
+      : object.type === 'symbol'
+        ? { ...object, ...(object.points === undefined ? {} : { points: Math.max(3, Math.min(24, Math.round(object.points))) }), ...(object.innerRatio === undefined ? {} : { innerRatio: Math.max(0.2, Math.min(0.9, object.innerRatio)) }), ...(object.sides === undefined ? {} : { sides: Math.max(3, Math.min(12, Math.round(object.sides))) }) }
+        : object),
   };
 }

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createCanvas, Path2D as CanvasPath2D, type Canvas } from '@napi-rs/canvas';
 import { counterLabel, renderArtwork, renderScene, watermarkTileSpacing, type Surface } from './renderer';
 import { createScene, type SymbolName } from '../core/types';
+import { parseScene, serializeScene } from '../core/serialize';
 
 globalThis.Path2D = CanvasPath2D as unknown as typeof Path2D;
 import { fitViewport } from '../core/viewport';
@@ -120,6 +121,19 @@ describe('renderScene', () => {
 
     expect(renderSymbol('target').getImageData(5, 50, 1, 1).data[3]).toBeGreaterThan(200);
     expect(renderSymbol('pin').getImageData(5, 50, 1, 1).data[3]).toBe(0);
+  });
+
+  it('renders legacy stars and hexagons unchanged after project load', () => {
+    const source = createCanvas(100, 100);
+    const scene = createScene();
+    scene.image = { source: source as unknown as CanvasImageSource, width: 100, height: 100, dataUrl: 'data:image/png;base64,AA==' };
+    scene.objects = (['star', 'hexagon'] as const).map((name, index) => ({ id: name, type: 'symbol', name, rect: { x: index * 50, y: 0, w: 50, h: 50 }, style: { color: '#ff0000', width: 3, opacity: 1 } }));
+    const before = makeSurface(100, 100);
+    renderArtwork(before.surface, scene);
+    const restored = parseScene(serializeScene(scene));
+    const after = makeSurface(100, 100);
+    renderArtwork(after.surface, { ...scene, objects: restored.objects });
+    expect(after.canvas.toBuffer('image/png')).toEqual(before.canvas.toBuffer('image/png'));
   });
 
   it('renders stop and directional hand symbols', () => {

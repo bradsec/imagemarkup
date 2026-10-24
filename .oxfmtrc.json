@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "dist/**",
+    "public/favicon-*.png",
+    "public/favicon.ico",
+    "public/apple-touch-icon.png",
+    "public/android-chrome-*.png",
+    "public/og-image.png",
+    "package-lock.json",
+    "public/THIRD-PARTY-LICENSES.txt"
+  ]
+}

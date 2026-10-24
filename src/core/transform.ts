@@ -1,6 +1,6 @@
 import { annotationVisualBounds, rectFromPoints } from './annotations';
 import type { Point, Rect } from './geometry';
-import type { Annotation } from './types';
+import { isPathAnnotation, type Annotation } from './types';
 
 export type FrameTransform = 'rotate-left' | 'rotate-right' | 'flip-horizontal' | 'flip-vertical';
 
@@ -36,7 +36,7 @@ export function transformAnnotation(object: Annotation, transform: FrameTransfor
   }
   if ('rect' in object) return { ...object, rect: transformRect(object.rect, transform, width, height) };
   if ('start' in object) return { ...object, start: transformPoint(object.start, transform, width, height), end: transformPoint(object.end, transform, width, height) };
-  if ('points' in object) return { ...object, points: object.points.map((point) => transformPoint(point, transform, width, height)) };
+  if (isPathAnnotation(object)) return { ...object, points: object.points.map((point) => transformPoint(point, transform, width, height)) };
   return { ...object, position: transformPoint(object.position, transform, width, height) };
 }
 
@@ -45,7 +45,7 @@ export function scaleAnnotation(object: Annotation, sx: number, sy: number): Ann
   const style = { ...object.style, width: object.style.width * factor };
   if ('rect' in object) return { ...object, style, rect: { x: object.rect.x * sx, y: object.rect.y * sy, w: object.rect.w * sx, h: object.rect.h * sy } };
   if ('start' in object) return { ...object, style, start: { x: object.start.x * sx, y: object.start.y * sy }, end: { x: object.end.x * sx, y: object.end.y * sy } };
-  if ('points' in object) return { ...object, style, points: object.points.map((point) => ({ x: point.x * sx, y: point.y * sy })) };
+  if (isPathAnnotation(object)) return { ...object, style, points: object.points.map((point) => ({ x: point.x * sx, y: point.y * sy })) };
   if (object.type === 'counter') return { ...object, style, position: { x: object.position.x * sx, y: object.position.y * sy }, radius: object.radius * factor, fontSize: object.fontSize === undefined ? undefined : object.fontSize * factor };
   return { ...object, style, position: { x: object.position.x * sx, y: object.position.y * sy }, fontSize: Math.ceil(object.fontSize * factor) };
 }
@@ -53,7 +53,7 @@ export function scaleAnnotation(object: Annotation, sx: number, sy: number): Ann
 export function translateAnnotation(object: Annotation, dx: number, dy: number): Annotation {
   if ('rect' in object) return { ...object, rect: { ...object.rect, x: object.rect.x + dx, y: object.rect.y + dy } };
   if ('start' in object) return { ...object, start: { x: object.start.x + dx, y: object.start.y + dy }, end: { x: object.end.x + dx, y: object.end.y + dy } };
-  if ('points' in object) return { ...object, points: object.points.map((point) => ({ x: point.x + dx, y: point.y + dy })) };
+  if (isPathAnnotation(object)) return { ...object, points: object.points.map((point) => ({ x: point.x + dx, y: point.y + dy })) };
   return { ...object, position: { x: object.position.x + dx, y: object.position.y + dy } };
 }
 

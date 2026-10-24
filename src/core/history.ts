@@ -30,9 +30,18 @@ export class AnnotationHistory {
     this.past = [];
     this.future = [];
   }
+
+  sources(): Set<CanvasImageSource> {
+    return new Set([...this.past, ...this.future].flatMap(sceneSources));
+  }
 }
 
 export type Snapshot = Pick<Scene, 'image' | 'viewport' | 'objects' | 'crop' | 'border' | 'watermark'>;
+
+export function sceneSources(scene: Pick<Scene, 'image' | 'objects' | 'watermark'>): CanvasImageSource[] {
+  return [scene.image?.source, ...scene.objects.filter((object) => object.type === 'image').map((object) => object.source), scene.watermark?.kind === 'image' ? scene.watermark.source : undefined]
+    .filter((source): source is CanvasImageSource => source !== undefined);
+}
 
 function snapshot(scene: Scene): Snapshot {
   return {

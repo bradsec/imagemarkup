@@ -14,7 +14,10 @@ export type SymbolName =
   | 'exclamation' | 'question' | 'info' | 'warning' | 'plus' | 'minus' | 'heart'
   | 'arrow-up' | 'arrow-down' | 'arrow-left' | 'arrow-right'
   | 'lightning' | 'flag' | 'pin' | 'target' | 'speech' | 'eye'
-  | 'hand-stop' | 'hand-point-left' | 'hand-point-right';
+  | 'hand-stop' | 'hand-point-left' | 'hand-point-right'
+  | 'octagon' | 'rounded-square' | 'ring' | 'check-circle' | 'close-circle'
+  | 'thumbs-up' | 'thumbs-down' | 'lock' | 'unlock' | 'bug' | 'lightbulb'
+  | 'bell' | 'clock' | 'calendar' | 'search' | 'cursor' | 'home' | 'user' | 'mail' | 'link';
 export type Watermark =
   | { kind: 'text'; text: string; size: number; color: string; opacity: number; tile: boolean; angle?: number; fontFamily?: string; fontWeight?: 'normal' | 'bold'; fontStyle?: 'normal' | 'italic' }
   | { kind: 'image'; dataUrl: string; source?: CanvasImageSource; scale: number; opacity: number; tile: boolean; angle?: number };
@@ -66,6 +69,8 @@ export interface TextAnnotation extends AnnotationBase {
   text: string;
   fontFamily: string;
   fontSize: number;
+  letterSpacing?: number;
+  lineHeight?: number;
   fontWeight: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
   underline?: boolean;
@@ -108,9 +113,16 @@ export interface SymbolAnnotation extends AnnotationBase {
   type: 'symbol';
   rect: Rect;
   name: SymbolName;
+  points?: number;
+  innerRatio?: number;
+  sides?: number;
 }
 
 export type Annotation = ShapeAnnotation | LineAnnotation | PathAnnotation | TextAnnotation | CounterAnnotation | RedactionAnnotation | PlacedImageAnnotation | SymbolAnnotation;
+
+export function isPathAnnotation(object: Annotation): object is PathAnnotation {
+  return object.type === 'pen' || object.type === 'highlighter';
+}
 
 export interface Scene {
   image: LoadedImage | null;
@@ -126,10 +138,15 @@ export interface Scene {
   watermark: Watermark | null;
   showOverflow: boolean;
   symbolName: SymbolName;
+  symbolPoints: number;
+  symbolInnerRatio: number;
+  symbolSides: number;
   arrowStartHead: ArrowHead;
   arrowEndHead: ArrowHead;
   fontFamily: string;
   fontSize: number;
+  letterSpacing: number;
+  lineHeight: number;
   fontWeight: 'normal' | 'bold';
   fontStyle: 'normal' | 'italic';
   textUnderline: boolean;
@@ -161,10 +178,15 @@ export function createScene(): Scene {
     watermark: null,
     showOverflow: false,
     symbolName: 'check',
+    symbolPoints: 5,
+    symbolInnerRatio: 0.43,
+    symbolSides: 6,
     arrowStartHead: 'none',
     arrowEndHead: 'open',
     fontFamily: 'Kalam',
     fontSize: 32,
+    letterSpacing: 0,
+    lineHeight: 1.2,
     fontWeight: 'normal',
     fontStyle: 'normal',
     textUnderline: false,

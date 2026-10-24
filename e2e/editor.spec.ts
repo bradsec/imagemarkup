@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { createCanvas, loadImage as loadCanvasImage } from '@napi-rs/canvas';
 import { readFile } from 'node:fs/promises';
+import { annotationBounds } from '../src/core/annotations';
 
 const fixture = createCanvas(320, 240);
 const fixtureContext = fixture.getContext('2d');
@@ -36,7 +37,7 @@ async function loadImage(page: Page): Promise<void> {
 }
 
 async function canvasCenter(page: Page): Promise<{ x: number; y: number }> {
-  const box = await page.locator('canvas').boundingBox();
+  const box = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
   if (!box) throw new Error('Canvas is not visible');
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
@@ -46,6 +47,22 @@ async function drag(page: Page, from: [number, number], to: [number, number], st
   await page.mouse.move(center.x + from[0], center.y + from[1]);
   await page.mouse.down();
   await page.mouse.move(center.x + to[0], center.y + to[1], { steps });
+  await page.mouse.up();
+}
+
+async function imagePoint(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
+  const scene = await saveScene(page);
+  const box = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
+  if (!box) throw new Error('Canvas is not visible');
+  return { x: box.x + scene.viewport.tx + x * scene.viewport.scale, y: box.y + scene.viewport.ty + y * scene.viewport.scale };
+}
+
+async function dragImage(page: Page, from: [number, number], to: [number, number]): Promise<void> {
+  const start = await imagePoint(page, ...from);
+  const end = await imagePoint(page, ...to);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
   await page.mouse.up();
 }
 
@@ -59,7 +76,8 @@ async function saveScene(page: Page): Promise<any> {
 }
 
 async function canvasColorPixelCount(page: Page, color: [number, number, number]): Promise<number> {
-  return page.locator('canvas').evaluate((canvas, expected) => {
+  return page.locator('.stage-host canvas:not(.tool-preview)').evaluate((element, expected) => {
+    const canvas = element as HTMLCanvasElement;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas context unavailable');
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -70,6 +88,140 @@ async function canvasColorPixelCount(page: Page, color: [number, number, number]
     return count;
   }, color);
 }
+
+async function previewBounds(page: Page): Promise<{ x: number; y: number; w: number; h: number } | null> {
+  return page.locator('.tool-preview').evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let left = canvas.width, top = canvas.height, right = -1, bottom = -1;
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+      if (!pixels[(y * canvas.width + x) * 4 + 3]) continue;
+      left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
+    }
+    return right < 0 ? null : { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
+  });
+}
+
+test('Space pans from focused controls without drawing or activating the focused tool', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'webkit-iphone', 'Requires a pointer and hardware keyboard');
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="pen"]').click();
+  const before = await saveScene(page);
+  await page.locator('[data-style="width"]').click();
+  const center = await canvasCenter(page);
+  await page.mouse.move(center.x, center.y);
+  await page.keyboard.down('Space');
+  await expect(page.locator('#stage')).toHaveAttribute('data-space-pan', 'held');
+  await page.mouse.down();
+  await page.mouse.move(center.x + 30, center.y + 20, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up('Space');
+  const scene = await saveScene(page);
+  expect(scene.viewport.tx).toBeGreaterThan(before.viewport.tx + 25);
+  expect(scene.objects).toHaveLength(0);
+  await page.locator('.toolrail [data-tool="rect"]').focus();
+  await page.mouse.move(center.x, center.y);
+  await page.keyboard.down('Space');
+  await page.keyboard.up('Space');
+  await expect(page.locator('.toolrail [data-tool="rect"]')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('shows a width preview over the artboard and hides it on leave', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="pen"]').click();
+  const center = await canvasCenter(page);
+  await page.mouse.move(center.x, center.y);
+  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
+  const before = await previewBounds(page);
+  await page.locator('[data-style="width"]').fill('36');
+  await expect.poll(async () => (await previewBounds(page))?.w).toBeGreaterThan(before!.w);
+  await page.mouse.move(0, 0);
+  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'false', { timeout: 2000 });
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await page.mouse.move(center.x, center.y);
+  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
+  expect((await saveScene(page)).objects).toHaveLength(0);
+});
+
+test('redaction ghost renders the effect and responds to strength without exporting it', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="redaction"]').click();
+  const center = await canvasCenter(page);
+  await page.mouse.move(center.x, center.y);
+  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
+  const sample = () => page.locator('.tool-preview').evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const x = Math.floor(canvas.width / 2), y = Math.floor(canvas.height / 2);
+    return [...ctx.getImageData(x - 15, y - 15, 30, 30).data];
+  });
+  const weak = await sample();
+  expect(weak.some((value, index) => index % 4 !== 3 && value !== 0)).toBe(true);
+  await page.locator('[data-style="redaction-strength"]').fill('40');
+  await expect.poll(async () => JSON.stringify(await sample())).not.toBe(JSON.stringify(weak));
+  expect((await saveScene(page)).objects).toHaveLength(0);
+  await page.locator('.topbar-actions [data-action="export"]').click();
+  const download = page.waitForEvent('download');
+  await page.locator('#export-dialog button[value="download"]').click();
+  const path = await (await download).path();
+  if (!path) throw new Error('PNG download path unavailable');
+  const exported = createCanvas(320, 240);
+  exported.getContext('2d').drawImage(await loadCanvasImage(path), 0, 0);
+  expect([...exported.getContext('2d').getImageData(0, 0, 320, 240).data])
+    .toEqual([...fixtureContext.getImageData(0, 0, 320, 240).data]);
+  const scenePixels = () => page.locator('.stage-host canvas:not(.tool-preview)').evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const x = Math.floor(canvas.width / 2), y = Math.floor(canvas.height / 2);
+    return [...canvas.getContext('2d')!.getImageData(x - 15, y - 15, 30, 30).data];
+  });
+  const beforeDrag = await scenePixels();
+  await page.mouse.move(center.x - 40, center.y - 40);
+  await page.mouse.down();
+  await page.mouse.move(center.x + 40, center.y + 40, { steps: 4 });
+  await expect.poll(async () => JSON.stringify(await scenePixels())).not.toBe(JSON.stringify(beforeDrag));
+  await page.mouse.up();
+});
+
+test('counter ghost follows format and size and matches the placed counter bounds', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="counter"]').click();
+  const center = await canvasCenter(page);
+  await page.mouse.move(center.x, center.y);
+  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
+  const first = await previewBounds(page);
+  await page.locator('[data-choice-for="counter-format"] [data-value="roman"]').click();
+  await page.locator('[data-style="counter-size"]').fill('32');
+  await page.mouse.move(center.x, center.y);
+  await expect.poll(async () => (await previewBounds(page))?.w).toBeGreaterThan(first!.w);
+  const ghost = await previewBounds(page);
+  await page.locator('.stage-host canvas:not(.tool-preview)').evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    (canvas as HTMLCanvasElement & { beforePlacement?: Uint8ClampedArray }).beforePlacement = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+  });
+  await page.mouse.click(center.x, center.y);
+  const scene = await saveScene(page);
+  expect(scene.objects[0]).toMatchObject({ type: 'counter', format: 'roman', radius: 32 });
+  await page.keyboard.press('Escape');
+  const placed = await page.locator('.stage-host canvas:not(.tool-preview)').evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const before = (canvas as HTMLCanvasElement & { beforePlacement?: Uint8ClampedArray }).beforePlacement!;
+    const after = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let left = canvas.width, top = canvas.height, right = -1, bottom = -1;
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+      const index = (y * canvas.width + x) * 4;
+      if (before[index] === after[index] && before[index + 1] === after[index + 1] && before[index + 2] === after[index + 2]) continue;
+      left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
+    }
+    return { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
+  });
+  expect(Math.abs(ghost!.x - placed.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(ghost!.y - placed.y)).toBeLessThanOrEqual(2);
+  expect(Math.abs(ghost!.w - placed.w)).toBeLessThanOrEqual(2);
+  expect(Math.abs(ghost!.h - placed.h)).toBeLessThanOrEqual(2);
+});
 
 test('does not report browser errors when the pointer moves before an image is loaded', async ({ page }) => {
   await page.goto('/');
@@ -94,6 +246,52 @@ test('opens the file picker only from the empty-state Load image button', async 
   await loadButton.click();
   await (await chooser).setFiles({ name: 'initial.png', mimeType: 'image/png', buffer: imageBuffer });
   await expect(page.locator('#status')).toContainText('320 x 240');
+});
+
+test('shows a dismissible image load error beside the stage', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'bad.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
+  await expect(page.locator('.load-error [role="alert"]')).toHaveText('Could not decode that image');
+  await expect(page.locator('#status')).toHaveText('Image load failed');
+  await page.locator('.load-error button').click();
+  await expect(page.locator('.load-error')).toBeHidden();
+  await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'sample.png', mimeType: 'image/png', buffer: imageBuffer });
+  await expect(page.locator('.load-error')).toBeHidden();
+});
+
+test('keeps the load error inside the stage at a 320 by 256 viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 256 });
+  await page.goto('/');
+  await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'bad.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
+  const notice = page.locator('.load-error');
+  await expect(notice).toBeVisible();
+  const stage = await page.locator('#stage').boundingBox();
+  const box = await notice.boundingBox();
+  if (!stage || !box) throw new Error('Stage or notice bounds unavailable');
+  expect(box.x).toBeGreaterThanOrEqual(stage.x);
+  expect(box.y).toBeGreaterThanOrEqual(stage.y);
+  expect(box.x + box.width).toBeLessThanOrEqual(stage.x + stage.width);
+  expect(box.y + box.height).toBeLessThanOrEqual(stage.y + stage.height);
+  await notice.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(notice).toBeHidden();
+});
+
+test('highlights the stage during a file drag without flicker over children', async ({ page }) => {
+  await page.goto('/');
+  const stage = page.locator('#stage');
+  await stage.evaluate((element) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['x'], 'sample.png', { type: 'image/png' }));
+    element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: transfer }));
+  });
+  await expect(stage).toHaveClass(/dragover/);
+  await stage.evaluate((element) => {
+    const child = element.querySelector('.empty-state')!;
+    element.dispatchEvent(new DragEvent('dragleave', { bubbles: true, relatedTarget: child }));
+  });
+  await expect(stage).toHaveClass(/dragover/);
+  await stage.evaluate((element) => element.dispatchEvent(new DragEvent('dragend', { bubbles: true })));
+  await expect(stage).not.toHaveClass(/dragover/);
 });
 
 test('shows only the hint relevant to the active tool or selection', async ({ page }) => {
@@ -239,7 +437,7 @@ test('uses Shift and Alt or Option modifiers while resizing', async ({ page }) =
   let rotateCursor = '';
   for (let offset = -50; offset >= -150 && !rotateCursor.includes('data:image/svg+xml'); offset -= 4) {
     await page.mouse.move(center.x, center.y + offset);
-    rotateCursor = await page.locator('canvas').evaluate((canvas) => canvas.style.cursor);
+    rotateCursor = await page.locator('.stage-host canvas:not(.tool-preview)').evaluate((canvas) => canvas.style.cursor);
   }
   if (await page.evaluate(() => matchMedia('(pointer: fine)').matches)) expect(rotateCursor).toContain('data:image/svg+xml');
 
@@ -360,22 +558,23 @@ test('applies independent arrowheads and rotates a line from its rotation handle
 
   await page.locator('.toolrail [data-tool="select"]').click();
   scene = await saveScene(page);
-  let canvas = await page.locator('canvas').boundingBox();
+  let canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
+  const initialCanvas = canvas;
   const arrow = scene.objects[0];
   const center = { x: (arrow.start.x + arrow.end.x) / 2, y: (arrow.start.y + arrow.end.y) / 2 };
   const padding = arrow.style.width / 2;
-  const toScreen = (point: { x: number; y: number }) => ({ x: canvas.x + scene.viewport.tx + point.x * scene.viewport.scale, y: canvas.y + scene.viewport.ty + point.y * scene.viewport.scale });
+  const toScreen = (point: { x: number; y: number }) => ({ x: initialCanvas.x + scene.viewport.tx + point.x * scene.viewport.scale, y: initialCanvas.y + scene.viewport.ty + point.y * scene.viewport.scale });
   const lineCenter = toScreen(center);
   await page.mouse.click(lineCenter.x, lineCenter.y);
   scene = await saveScene(page);
   expect(scene.selectedId).toBe(scene.objects[0].id);
-  canvas = await page.locator('canvas').boundingBox();
+  canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   const selectedToScreen = (point: { x: number; y: number }) => ({ x: canvas!.x + scene.viewport.tx + point.x * scene.viewport.scale, y: canvas!.y + scene.viewport.ty + point.y * scene.viewport.scale });
   const endPoint = selectedToScreen(arrow.end);
   await page.mouse.move(endPoint.x, endPoint.y);
-  await expect(page.locator('canvas')).toHaveCSS('cursor', 'move');
+  await expect(page.locator('.stage-host canvas:not(.tool-preview)')).toHaveCSS('cursor', 'move');
   const grip = selectedToScreen({ x: center.x, y: center.y - padding - 24 });
   const rotated = selectedToScreen({ x: center.x + padding + 24, y: center.y });
   await page.mouse.move(grip.x, grip.y);
@@ -624,6 +823,91 @@ test('remembers rich text defaults and offers local bundled fonts and common siz
   for (const object of scene.objects) expect(object).toMatchObject({ type: 'text', fontFamily: 'Poppins', fontSize: 48, fontWeight: 'bold', fontStyle: 'italic', underline: true, align: 'justify' });
 });
 
+test('text spacing changes multiline bounds, survives reload, and can be undone', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="text"]').click();
+  const point = await imagePoint(page, 40, 60);
+  await page.mouse.click(point.x, point.y);
+  await page.locator('.text-editor').fill('A spaced line\nAnother spaced line');
+  await page.locator('.text-editor').blur();
+  const original = (await saveScene(page)).objects[0];
+  const originalBounds = annotationBounds(original);
+
+  await page.locator('[data-style="letter-spacing"]').fill('200');
+  await page.locator('[data-style="letter-spacing"]').blur();
+  await page.locator('[data-style="line-height"]').fill('2');
+  await page.locator('[data-style="line-height"]').blur();
+  let scene = await saveScene(page);
+  expect(scene.objects[0]).toMatchObject({ letterSpacing: 200, lineHeight: 2 });
+  const spacedBounds = annotationBounds(scene.objects[0]);
+  expect(spacedBounds.w).toBeGreaterThan(originalBounds.w);
+  expect(spacedBounds.h).toBeGreaterThan(originalBounds.h);
+
+  await page.locator('#stage').focus();
+  await page.keyboard.press('Control+z');
+  scene = await saveScene(page);
+  expect(scene.objects[0]).toMatchObject({ letterSpacing: 200, lineHeight: 1.2 });
+  await page.keyboard.press('Control+Shift+z');
+  const saved = await saveScene(page);
+  expect(saved.objects[0]).toMatchObject({ letterSpacing: 200, lineHeight: 2 });
+  await page.locator('input[accept^=".imgmarkup"]').setInputFiles({ name: 'spaced.imgmarkup', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)) });
+  await expect.poll(async () => (await saveScene(page)).objects[0]?.lineHeight).toBe(2);
+  expect((await saveScene(page)).objects[0].letterSpacing).toBe(200);
+});
+
+test('star points apply to new symbols', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.locator('[data-choice-for="symbol"] [data-value="star"]').click();
+  await page.locator('[data-style="symbol-points"]').fill('8');
+  await page.locator('[data-style="symbol-points"]').blur();
+  await dragImage(page, [80, 60], [150, 130]);
+  expect((await saveScene(page)).objects[0]).toMatchObject({ type: 'symbol', name: 'star', points: 8 });
+});
+
+test('polygon sides update a selected symbol and undo restores them', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.locator('[data-choice-for="symbol"] [data-value="hexagon"]').click();
+  await dragImage(page, [80, 60], [150, 130]);
+  expect((await saveScene(page)).objects[0]).toMatchObject({ type: 'symbol', name: 'hexagon' });
+  await page.locator('[data-style="symbol-sides"]').fill('8');
+  await page.locator('[data-style="symbol-sides"]').blur();
+  expect((await saveScene(page)).objects[0].sides).toBe(8);
+  await page.locator('#stage').focus();
+  await page.keyboard.press('Control+z');
+  expect((await saveScene(page)).objects[0].sides ?? 6).toBe(6);
+});
+
+test('symbol search and arrow keys reach choices', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  const search = page.getByRole('searchbox', { name: 'Search symbols' });
+  await search.fill('target');
+  await search.press('ArrowDown');
+  await expect(page.getByRole('button', { name: 'Target reticle symbol' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-style="symbol"]')).toHaveValue('target');
+  await expect(page.getByRole('group', { name: 'Marks' })).toBeVisible();
+});
+
+test('symbol picker fits the mobile options bar at 320px', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  const picker = page.locator('.symbol-options');
+  await expect(picker).toBeVisible();
+  await page.getByRole('button', { name: 'Star symbol' }).click();
+  await page.getByRole('button', { name: 'Target reticle symbol' }).click();
+  const bounds = await picker.boundingBox();
+  const options = await page.locator('.optionsbar').boundingBox();
+  const stage = await page.locator('#stage').boundingBox();
+  expect(bounds && options && stage).toBeTruthy();
+  expect(bounds!.x).toBeGreaterThanOrEqual(options!.x);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(options!.x + options!.width);
+  expect(options!.y + options!.height).toBeLessThanOrEqual(stage!.y);
+});
+
 test('persists uploaded fonts for later sessions', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="text"]').click();
@@ -810,6 +1094,114 @@ test('marquee selects multiple objects and deletes them together', async ({ page
   expect((await saveScene(page)).objects).toHaveLength(0);
 });
 
+test('entering crop clears the selection and marquee overlay', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await dragImage(page, [40, 40], [90, 90]);
+  // Capture the reference in crop mode: the crop options bar changes canvas size on mobile.
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  const canvas = page.locator('.stage-host canvas:not(.tool-preview)');
+  const cleanPixels = await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
+  await page.locator('.toolrail [data-tool="select"]').click();
+  await dragImage(page, [20, 20], [110, 110]);
+  await expect(page.locator('#active-tool-name')).toHaveText('Rect selected');
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  expect((await saveScene(page)).selectedId).toBeNull();
+  await expect.poll(() => canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL())).toBe(cleanPixels);
+});
+
+test('switching away from crop clears the pending rectangle and crop actions', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  await dragImage(page, [40, 30], [210, 170]);
+  expect((await saveScene(page)).crop.w).toBeGreaterThan(0);
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  expect((await saveScene(page)).crop).toBeNull();
+  await expect(page.locator('[data-action="apply-crop"]')).toBeHidden();
+  await expect(page.locator('[data-action="cancel-crop"]')).toBeHidden();
+});
+
+test('resizing crop changes applied dimensions, and crop uses one undo step', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await dragImage(page, [80, 60], [130, 110]);
+  const annotation = (await saveScene(page)).objects[0];
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  await dragImage(page, [30, 20], [200, 160]);
+  await dragImage(page, [200, 160], [230, 190]);
+  const adjusted = (await saveScene(page)).crop;
+  expect(adjusted.w).toBeGreaterThan(170);
+  expect(adjusted.h).toBeGreaterThan(140);
+  await page.locator('[data-action="apply-crop"]').click();
+  let scene = await saveScene(page);
+  expect(scene.image).toMatchObject({ width: Math.round(adjusted.w), height: Math.round(adjusted.h) });
+  await page.keyboard.press('Control+z');
+  scene = await saveScene(page);
+  expect(scene.image).toMatchObject({ width: 320, height: 240 });
+  expect(scene.objects).toEqual([annotation]);
+  await page.keyboard.press('Control+z');
+  expect((await saveScene(page)).objects).toHaveLength(0);
+});
+
+test('Escape cancels crop', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  await dragImage(page, [40, 30], [210, 170]);
+  await page.keyboard.press('Escape');
+  const scene = await saveScene(page);
+  expect(scene.crop).toBeNull();
+  expect(scene.activeTool).toBe('select');
+  await expect(page.locator('[data-action="apply-crop"]')).toBeHidden();
+});
+
+test('1:1 crop ratio makes a square crop', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  await page.locator('[data-style="crop-ratio"]').selectOption('1:1');
+  await dragImage(page, [30, 30], [230, 130]);
+  const crop = (await saveScene(page)).crop;
+  expect(crop.w).toBeCloseTo(crop.h, 1);
+});
+
+test('crop can move, nudge, and apply with Enter', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  await dragImage(page, [40, 30], [140, 110]);
+  const initial = (await saveScene(page)).crop;
+  await dragImage(page, [90, 70], [100, 80]);
+  let crop = (await saveScene(page)).crop;
+  // Pointer drags map through zoom, so allow sub-pixel error; keyboard nudges are exact.
+  expect(crop.x).toBeCloseTo(initial.x + 10, 0);
+  expect(crop.y).toBeCloseTo(initial.y + 10, 0);
+  const dragged = crop;
+  await page.locator('#stage').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Shift+ArrowDown');
+  crop = (await saveScene(page)).crop;
+  expect(crop.x).toBeCloseTo(dragged.x + 1, 5);
+  expect(crop.y).toBeCloseTo(dragged.y + 10, 5);
+  await page.locator('#stage').focus();
+  await page.keyboard.press('Enter');
+  expect((await saveScene(page)).image).toMatchObject({ width: Math.round(crop.w), height: Math.round(crop.h) });
+  await expect(page.locator('[data-action="apply-crop"]')).toBeHidden();
+});
+
+test('crop orientation swap and Shift constrain the rectangle', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  await page.locator('[data-style="crop-ratio"]').selectOption('4:3');
+  await page.getByRole('button', { name: 'Swap crop orientation' }).click();
+  await dragImage(page, [30, 30], [150, 140]);
+  const swapped = (await saveScene(page)).crop;
+  expect(swapped.w / swapped.h).toBeCloseTo(3 / 4, 1);
+  await page.locator('[data-style="crop-ratio"]').selectOption('free');
+  await page.keyboard.down('Shift');
+  await dragImage(page, [250, 180], [150, 70]);
+  await page.keyboard.up('Shift');
+  const crop = (await saveScene(page)).crop;
+  expect(crop.w / crop.h).toBeCloseTo(320 / 240, 1);
+});
+
 test('marquee group can be dragged to move every selected object together', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="rect"]').click();
@@ -907,7 +1299,9 @@ test('opens About from Help and links to the creator and repository', async ({ p
   await expect(page.locator('#about-dialog a', { hasText: 'BRADSEC' })).toHaveAttribute('href', 'https://github.com/bradsec');
   await expect(page.locator('#about-dialog a', { hasText: 'View imagemarkup on GitHub' })).toHaveAttribute('href', 'https://github.com/bradsec/imagemarkup');
   await expect(page.locator('#about-dialog')).toContainText('If you find this useful, please consider starring the repository. It helps others discover the project.');
-  await expect(page.locator('#about-dialog a')).toHaveCount(2);
+  await expect(page.locator('#about-dialog a', { hasText: 'buy me a coffee' })).toHaveAttribute('href', 'https://buymeacoffee.com/markbradley');
+  await expect(page.locator('#about-dialog a', { hasText: 'View third-party licenses' })).toHaveAttribute('href', './THIRD-PARTY-LICENSES.txt');
+  await expect(page.locator('#about-dialog a')).toHaveCount(4);
 });
 
 test('applies crop from the contextual options bar', async ({ page }) => {

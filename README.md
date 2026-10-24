@@ -1,14 +1,60 @@
 # imagemarkup
 
-Private, browser-based image annotation. Images stay on the device and the built app is static-hostable.
+[![Tests](https://github.com/bradsec/imagemarkup/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/bradsec/imagemarkup/actions/workflows/tests.yml)
+[![Version](https://img.shields.io/github/package-json/v/bradsec/imagemarkup)](package.json)
+[![License: MIT](https://img.shields.io/github/license/bradsec/imagemarkup)](LICENSE)
+[![Live site](https://img.shields.io/website?url=https%3A%2F%2Fimagemarkup.com%2F&label=imagemarkup.com)](https://imagemarkup.com/)
 
-Live application: [imagemarkup.com](https://imagemarkup.com/)
+Private, browser-based image annotation. Images stay on your device, and the built app runs on a static host.
+
+**Live app: https://imagemarkup.com/**
 
 ![imagemarkup interface](screenshot.png)
 
-## Development
+## Features
 
-Requires Node.js 22.12 or newer.
+- Load a base image from the centered button, paste it, or drop it on the editor; add more images as editable layers.
+- Preserve transparent PNG pixels while editing, cropping, resizing, and exporting PNG files, including transparency behind marks.
+- Keep off-canvas artwork hidden by default, or enable View > Show overflow to reveal it and expand PNG exports with a transparent background.
+- Set measurement units, document resolution, and a high-contrast selection color from File > Preferences. Preferences persist between browser sessions.
+- Draw boxes, ellipses, lines, arrows, pen strokes, highlights, direct multiline text, counters, symbols, and redactions.
+- Use Microsoft-style standard stroke/fill palettes, five quick thickness presets, custom colors, independent Stroke and Fill on/off controls, line caps and joins, independent start and end arrowheads in five styles, and a grouped, searchable visual symbol library. Stars support 3 to 24 points and adjustable inner radius; the polygon symbol supports 3 to 12 sides. Numeric, letter, or Roman counter sequences can restart or continue from any value. Step counters have independent shape and text colors, with standard presets, exact color inputs, and image pickers for both. Selecting an existing counter exposes its own value without changing neighbouring counters or the next sequence value.
+- Create rich text with locally bundled Kalam, Inter, Roboto, Open Sans, Lato, Montserrat, Poppins, Merriweather, Libre Baskerville, and Oswald fonts; quick size presets; bold, italic, underline; left, center, right, or justified alignment; letter spacing in thousandths of an em; and line spacing as a font-size multiplier.
+- Select, move, resize, rotate, restyle, reorder, delete, undo, and redo objects. Lines and arrows use a centerline selection with fixed-opposite endpoint grips, a midpoint rotation handle, and a four-way cursor because either endpoint can move freely. Type exact width and height values in the top bar using the preferred measurement unit, with an optional aspect-ratio lock. The independent floating Layers palette supports show/hide visibility, locking, contiguous Shift selection, non-contiguous Ctrl/Cmd selection, drag reordering, direct deletion, and right-click actions for renaming, duplicating, or deleting a layer. Visibility and lock controls sit together on the left of each layer, while delete remains isolated on the right. Hold Shift while drawing or resizing to constrain proportions, Shift while rotating to snap to 45-degree increments, Alt/Option to draw or resize from the center, or combine modifiers where applicable.
+- Crop, resize, rotate, flip, add borders, and apply angled text or image watermarks. Resizing the base image scales every existing annotation with it, including non-proportional resizing. Text watermarks support the installed and uploaded font library, bold, italic, and overlap-safe tiling.
+- Autosave locally, import/export editable `.imgmarkup` projects, and upload local fonts.
+- Export PNG or JPG at 1x/2x, with a contextual JPG quality control, download, or copy PNG to the clipboard.
+- Mouse, keyboard, pen, and touch input, including cursor zoom and two-finger pinch/pan. On mobile, browser page zoom is disabled so pinch gestures remain dedicated to the image canvas and the editor controls stay reachable.
+- Hover the artboard to preview a tool's current size and style before drawing. Text, symbols, counters, and redactions show their rendered result. Changing tool options shows a brief preview even when the pointer is away from the image.
+
+### Using the editor
+
+Open, save, transform, and export from the menu bar, or use the Save and Export buttons in the top bar. Pick a tool from the left rail; the floating options panel then shows only the settings that apply to that tool or the selected object, while the status bar shows only the relevant interaction hint. The Layers palette floats separately, remains available throughout the project, and can be positioned and resized independently. Options panel positions are remembered per tool, and the Layers position is remembered globally. File > Reset settings restores panel positions, colors, arrowheads, text and counter defaults, selection color, and editor preferences without changing artwork. Each canvas item is represented by its own layer row; drawing adds a row and deleting it removes that item. Press Ctrl+D to duplicate selected items with a small offset. Drag either palette by its heading when it covers the part of the image you need, or resize Layers from its lower-right edge. Stroke and fill swatches remain available beside the rail on narrow touch screens, while the options palette offers quick palettes and exact controls. Text font, formatting, and alignment remain the defaults for the current project. Choose the Text tool and click existing text to place a caret, edit, or highlight characters without opening a transform box; double-click text from Move for the same inline editor. Choose a common whole-pixel font size from the dropdown or enter a custom size. Add Font stores TTF, OTF, WOFF, or WOFF2 files locally in IndexedDB so they remain available in later sessions. Drawing tools remain active after each mark. New objects are selected for immediate editing, while pen and highlighter strokes remain unselected for uninterrupted drawing. Press Escape to finish inline text, leave the current tool or selection, and return to Move. Choose Move when you want to select and transform an object. The Crop tool provides Apply and Cancel controls as soon as a crop area is active; applying it clips intersecting layers to the new canvas and removes layers that fall completely outside. The About dialog provides the version, creator and asset credits, the GitHub repository, third-party licenses, and ways to support the project.
+
+When the image editing canvas has focus, common shortcuts include `V` for Move, `R` for Rectangle, `P` for Pen, `H` for Highlighter, `T` for Text, and arrow keys to move selected items by one pixel. Hold Space and drag to pan with any tool while the pointer is over the canvas, even after using a tool control. Text fields keep their normal Space behavior. Hold Shift with an arrow key to move by ten pixels. The mouse wheel zooms, and `Ctrl`/`Cmd` + `Z` undoes the last change.
+
+Text letter spacing, line spacing, and symbol shape controls update selected objects and become the defaults for new objects. Drag a crop to draw it, then move it or use its eight resize handles. Crop ratios include Free, Original, 1:1, 4:3, 3:2, and 16:9, with an orientation swap. Arrow keys nudge the crop when the canvas has focus; Shift moves it ten pixels. Enter applies one undoable crop step, and Escape cancels it.
+
+## Structure
+
+```
+index.html          page metadata and app mount
+src/core/          annotation models, geometry, history and serialization
+src/fonts/         uploaded font storage
+src/io/            image loading
+src/render/        canvas rendering and export
+src/state/         editor state and autosave
+src/ui/            shell, controls and canvas host
+src/controller.ts  UI actions and editor coordination
+src/style.css      app styles and responsive layout
+public/            icons, bundled fonts, licenses and site metadata
+scripts/           icon generation
+e2e/               Playwright browser tests
+```
+
+## Develop
+
+Requires Node.js 22.12 or newer and npm.
 
 ```sh
 npm ci
@@ -19,54 +65,14 @@ Run the verification gate with:
 
 ```sh
 npm test
+npm run typecheck
+npm run lint
 npm run build
-npx playwright install
+npx playwright install chromium webkit
 npm run test:e2e
 ```
 
-## Features
-
-- Load a base image from the centered button, paste it, or drop it on the editor; add more images as editable layers.
-- Preserve transparent PNG pixels while editing, cropping, resizing, and exporting PNG files, including transparency behind marks.
-- Keep off-canvas artwork hidden by default, or enable View > Show overflow to reveal it and expand PNG exports with a transparent background.
-- Set measurement units, document resolution, and a high-contrast selection color from File > Preferences. Preferences persist between browser sessions.
-- Draw boxes, ellipses, lines, arrows, pen strokes, highlights, direct multiline text, counters, symbols, and redactions.
-- Use Microsoft-style standard stroke/fill palettes, five quick thickness presets, custom colors, independent Stroke and Fill on/off controls, line caps and joins, independent start and end arrowheads in five styles, and a 21-item visual symbol library with matching previews and separate map-marker and target-reticle symbols. Numeric, letter, or Roman counter sequences can restart or continue from any value. Step counters have independent shape and text colors, with standard presets, exact color inputs, and image pickers for both. Selecting an existing counter exposes its own value without changing neighbouring counters or the next sequence value.
-- Create rich text with locally bundled Kalam, Inter, Roboto, Open Sans, Lato, Montserrat, Poppins, Merriweather, Libre Baskerville, and Oswald fonts; quick size presets; bold, italic, underline; and left, center, right, or justified alignment.
-- Select, move, resize, rotate, restyle, reorder, delete, undo, and redo objects. Lines and arrows use a centerline selection with fixed-opposite endpoint grips, a midpoint rotation handle, and a four-way cursor because either endpoint can move freely. Type exact width and height values in the top bar using the preferred measurement unit, with an optional aspect-ratio lock. The independent floating Layers palette supports show/hide visibility, locking, contiguous Shift selection, non-contiguous Ctrl/Cmd selection, drag reordering, direct deletion, and right-click actions for renaming, duplicating, or deleting a layer. Visibility and lock controls sit together on the left of each layer, while delete remains isolated on the right. Hold Shift while drawing or resizing to constrain proportions, Shift while rotating to snap to 45-degree increments, Alt/Option to draw or resize from the center, or combine modifiers where applicable.
-- Crop, resize, rotate, flip, add borders, and apply angled text or image watermarks. Resizing the base image scales every existing annotation with it, including non-proportional resizing. Text watermarks support the installed and uploaded font library, bold, italic, and overlap-safe tiling.
-- Autosave locally, import/export editable `.imgmarkup` projects, and upload local fonts.
-- Export PNG or JPG at 1x/2x, with a contextual JPG quality control, download, or copy PNG to the clipboard.
-- Mouse, keyboard, pen, and touch input, including cursor zoom and two-finger pinch/pan. On mobile, browser page zoom is disabled so pinch gestures remain dedicated to the image canvas and the editor controls stay reachable.
-
-## Using the editor
-
-Open, save, transform, and export from the menu bar, or use the Save and Export buttons in the top bar. Pick a tool from the left rail; the floating options panel then shows only the settings that apply to that tool or the selected object, while the status bar shows only the relevant interaction hint. The Layers palette floats separately, remains available throughout the project, and can be positioned and resized independently. Options panel positions are remembered per tool, and the Layers position is remembered globally. File > Reset settings restores panel positions, colors, arrowheads, text and counter defaults, selection color, and editor preferences without changing artwork. Each canvas item is represented by its own layer row; drawing adds a row and deleting it removes that item. Press Ctrl+D to duplicate selected items with a small offset. Drag either palette by its heading when it covers the part of the image you need, or resize Layers from its lower-right edge. The rail keeps stroke and fill swatches available at all times, while the options palette offers quick palettes and exact controls. Text font, formatting, and alignment remain the defaults for the current project. Choose the Text tool and click existing text to place a caret, edit, or highlight characters without opening a transform box; double-click text from Move for the same inline editor. Choose a common whole-pixel font size from the dropdown or enter a custom size. Add Font stores TTF, OTF, WOFF, or WOFF2 files locally in IndexedDB so they remain available in later sessions. Drawing tools remain active after each mark. New objects are selected for immediate editing, while pen and highlighter strokes remain unselected for uninterrupted drawing. Press Escape to finish inline text, leave the current tool or selection, and return to Move. Choose Move when you want to select and transform an object. The Crop tool provides Apply and Cancel controls as soon as a crop area is active; applying it clips intersecting layers to the new canvas and removes layers that fall completely outside. The About dialog provides version information, the GitHub repository, creator attribution, and a note encouraging users to star the repository.
-
-When the image editing canvas has focus, common shortcuts include `V` for Move, `R` for Rectangle, `P` for Pen, `H` for Highlighter, `T` for Text, Space-drag to pan, and arrow keys to move selected items by one pixel. Hold Shift with an arrow key to move by ten pixels. The mouse wheel zooms, and `Ctrl`/`Cmd` + `Z` undoes the last change.
-
-## Acknowledgements
-
-imagemarkup has no third-party runtime JavaScript dependencies. It bundles these third-party assets for offline use:
-
-- [Google Material Symbols](https://fonts.google.com/icons), licensed under the [Apache License 2.0](public/icons/material-symbols-LICENSE.txt).
-- Legacy hand gesture paths retained for compatibility with existing `.imgmarkup` projects come from [Font Awesome Free](https://fontawesome.com), copyright Fonticons, Inc., and are licensed under [CC BY 4.0](public/icons/font-awesome-NOTICE.txt). They are not offered in the current symbol menu.
-- Inter, Kalam, Lato, Libre Baskerville, Merriweather, Montserrat, Open Sans, Oswald, Poppins, and Roboto, licensed under the SIL Open Font License 1.1. Individual copyright notices and license texts are in [public/fonts/licenses](public/fonts/licenses).
-- The GitHub mark from [Primer Octicons](https://github.com/primer/octicons), copyright GitHub, Inc., licensed under the [MIT License](public/icons/octicons-LICENSE.txt). Use of the GitHub logo follows [GitHub's logo guidelines](https://github.com/logos).
-
-Development, testing, and build tooling:
-
-- `@axe-core/playwright`, MPL-2.0.
-- `@napi-rs/canvas`, MIT.
-- Playwright, Apache-2.0.
-- jsdom, MIT.
-- TypeScript, Apache-2.0.
-- Vite, MIT.
-- Vitest, MIT.
-
-Exact installed versions and transitive dependency metadata are recorded in `package-lock.json`.
-
-## Hosting
+## Deploy
 
 `npm run build` writes the complete static site to `dist/`. Deploy that directory to Cloudflare Pages, or any static host.
 
@@ -81,4 +87,36 @@ For Cloudflare Pages, connect the GitHub repository in the Cloudflare dashboard 
 
 No Cloudflare API token or GitHub deployment secrets are required for this Git integration. Cloudflare builds and deploys the site when `main` changes. Add `imagemarkup.com` as the project's custom domain after the first deployment.
 
-The tracked application version is stored in `package.json` and `package-lock.json`. Increment the patch version with `npm version patch --no-git-tag-version` as part of each release change. Vite places that version in the footer and About dialog during every build. The included GitHub Actions workflow runs tests and verifies the production build, but Cloudflare performs the deployment directly from the repository.
+The tracked application version is stored in `package.json` and `package-lock.json`. Increment the patch version with `npm version patch --no-git-tag-version` as part of each release change. Vite places that version in the footer and About dialog during every build. The Tests badge points to the GitHub Actions workflow. Cloudflare deploys on push independently of CI, so a failed test does not block deployment.
+
+## Browser support
+
+The Playwright configuration tests desktop Chromium and WebKit on an iPhone 13 profile. The editor requires JavaScript and browser Canvas support. Local files stay in the browser; project autosave and uploaded fonts require browser storage.
+
+## Acknowledgements and credits
+
+imagemarkup has no third-party runtime JavaScript dependencies. It bundles these third-party assets for offline use:
+
+- [Google Material Symbols](https://fonts.google.com/icons), licensed under the [Apache License 2.0](public/icons/material-symbols-LICENSE.txt).
+- Legacy hand gesture paths retained for compatibility with existing `.imgmarkup` projects come from [Font Awesome Free](https://fontawesome.com), copyright Fonticons, Inc., and are licensed under [CC BY 4.0](public/icons/font-awesome-NOTICE.txt). They are not offered in the current symbol menu.
+- Inter, Kalam, Lato, Libre Baskerville, Merriweather, Montserrat, Open Sans, Oswald, Poppins, and Roboto, licensed under the SIL Open Font License 1.1. Individual copyright notices and license texts are in [public/fonts/licenses](public/fonts/licenses).
+- The GitHub mark from [Primer Octicons](https://github.com/primer/octicons), copyright GitHub, Inc., licensed under the [MIT License](public/icons/octicons-LICENSE.txt). Use of the GitHub logo follows [GitHub's logo guidelines](https://github.com/logos).
+
+Development, testing, and build tooling:
+
+- `@axe-core/playwright`, MPL-2.0.
+- `@napi-rs/canvas`, MIT.
+- Playwright, Apache-2.0.
+- jsdom, MIT.
+- oxlint and oxfmt, MIT.
+- TypeScript, Apache-2.0.
+- Vite, MIT.
+- Vitest, MIT.
+
+Exact installed versions and transitive dependency metadata are recorded in `package-lock.json`.
+
+The bundled notices and license texts are also available in [THIRD-PARTY-LICENSES.txt](public/THIRD-PARTY-LICENSES.txt).
+
+## License
+
+imagemarkup is licensed under [MIT](LICENSE).

@@ -1,5 +1,6 @@
 import type { Point, Rect } from './geometry';
-import type { Annotation, AnnotationStyle } from './types';
+import { isPathAnnotation, type Annotation, type AnnotationStyle } from './types';
+import { textLineHeight, textWidth } from './text-layout';
 
 export type AnnotationHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'start' | 'end' | 'rotate';
 export interface ResizeOptions {
@@ -16,7 +17,7 @@ export function createAnnotation(id: string, type: Annotation['type'], start: Po
     return { id, type, rect: { x: start.x, y: start.y, w: 0, h: 0 }, style: { ...style } };
   }
   if (type === 'pen' || type === 'highlighter') return { id, type, points: [start], style: { ...style } };
-  if (type === 'text') return { id, type, position: start, text: '', fontFamily: 'Kalam', fontSize: 32, fontWeight: 'normal', fontStyle: 'normal', underline: false, align: 'left', style: { ...style } };
+  if (type === 'text') return { id, type, position: start, text: '', fontFamily: 'Kalam', fontSize: 32, letterSpacing: 0, lineHeight: 1.2, fontWeight: 'normal', fontStyle: 'normal', underline: false, align: 'left', style: { ...style } };
   if (type === 'counter') return { id, type, position: start, n: 1, radius: 18, style: { ...style } };
   if (type === 'redaction') return { id, type, rect: { x: start.x, y: start.y, w: 0, h: 0 }, mode: 'pixelate', strength: 10, style: { ...style } };
   if (type === 'symbol') return { id, type, rect: { x: start.x - 20, y: start.y - 20, w: 40, h: 40 }, name: 'check', style: { ...style } };
@@ -26,7 +27,7 @@ export function createAnnotation(id: string, type: Annotation['type'], start: Po
 
 export function resizeAnnotation(object: Annotation, start: Point, end: Point): Annotation {
   if ('rect' in object) return { ...object, rect: rectFromPoints(start, end) };
-  if ('points' in object) return { ...object, points: [...object.points, end] };
+  if (isPathAnnotation(object)) return { ...object, points: [...object.points, end] };
   if ('start' in object) return { ...object, start, end };
   return object;
 }
@@ -40,7 +41,7 @@ export function resizeAnnotationToBounds(object: Annotation, width: number, heig
   const sy = bounds.h > 0 ? nextHeight / bounds.h : 1;
   const map = (point: Point): Point => ({ x: bounds.x + (point.x - bounds.x) * sx, y: bounds.y + (point.y - bounds.y) * sy });
   if ('start' in object) return { ...object, start: map(object.start), end: map(object.end) };
-  if ('points' in object) return { ...object, points: object.points.map(map) };
+  if (isPathAnnotation(object)) return { ...object, points: object.points.map(map) };
   const widthChanged = Math.abs(nextWidth - bounds.w) > Math.abs(nextHeight - bounds.h);
   const factor = widthChanged ? sx : sy;
   if (object.type === 'counter') return { ...object, radius: object.radius * factor };
@@ -48,7 +49,7 @@ export function resizeAnnotationToBounds(object: Annotation, width: number, heig
 }
 
 export function appendPathPoints(object: Annotation, points: Point[], minimumDistance = 0.5): Annotation {
-  if (!('points' in object) || points.length === 0) return object;
+  if (!isPathAnnotation(object) || points.length === 0) return object;
   const next = [...object.points];
   for (const point of points) {
     const previous = next[next.length - 1];
@@ -61,7 +62,7 @@ export function moveAnnotation(object: Annotation, dx: number, dy: number): Anno
   if ('rect' in object) {
     return { ...object, rect: { ...object.rect, x: object.rect.x + dx, y: object.rect.y + dy } };
   }
-  if ('points' in object) return { ...object, points: object.points.map((point) => ({ x: point.x + dx, y: point.y + dy })) };
+  if (isPathAnnotation(object)) return { ...object, points: object.points.map((point) => ({ x: point.x + dx, y: point.y + dy })) };
   if ('position' in object) return { ...object, position: { x: object.position.x + dx, y: object.position.y + dy } };
   return {
     ...object,
@@ -93,7 +94,7 @@ export function hitTest(objects: Annotation[], point: Point, tolerance: number):
       if (rx > 0 && ry > 0 && ((test.x - x - w / 2) / rx) ** 2 + ((test.y - y - h / 2) / ry) ** 2 <= 1) return object;
     } else if ('start' in object && pointSegmentDistance(test, object.start, object.end) <= tolerance + object.style.width / 2) {
       return object;
-    } else if ('points' in object && object.points.some((start, index) => index > 0 && pointSegmentDistance(test, object.points[index - 1], start) <= tolerance + object.style.width / 2)) {
+    } else if (isPathAnnotation(object) && object.points.some((start, index) => index > 0 && pointSegmentDistance(test, object.points[index - 1], start) <= tolerance + object.style.width / 2)) {
       return object;
     } else if ('position' in object) {
       const bounds = annotationBounds(object);
@@ -131,25 +132,25 @@ function textBounds(object: Extract<Annotation, { type: 'text' }>): Rect {
     context.font = `${object.fontStyle ?? 'normal'} ${object.fontWeight} ${object.fontSize}px "${object.fontFamily}"`;
     for (const line of lines) {
       const metrics = context.measureText(line);
-      width = Math.max(width, metrics.width);
+      width = Math.max(width, textWidth(line, object.fontSize, object.letterSpacing, (value) => context.measureText(value).width));
       if (line) {
         ascent = Math.max(ascent, metrics.actualBoundingBoxAscent);
         descent = Math.max(object.underline ? object.fontSize * .13 : 0, metrics.actualBoundingBoxDescent);
       }
     }
   } else {
-    width = Math.max(0, ...lines.map((line) => fallbackTextWidth(line, object.fontSize, object.fontWeight === 'bold')));
+    width = Math.max(0, ...lines.map((line) => textWidth(line, object.fontSize, object.letterSpacing, (value) => fallbackTextWidth(value, object.fontSize, object.fontWeight === 'bold'))));
   }
   if (ascent + descent === 0) { ascent = object.fontSize * .8; descent = object.fontSize * .2; }
   width = Math.max(2, width);
   const x = object.align === 'center' ? object.position.x - width / 2 : object.align === 'right' || object.align === 'end' ? object.position.x - width : object.position.x;
-  return { x, y: object.position.y - ascent, w: width, h: ascent + descent + Math.max(0, lines.length - 1) * object.fontSize * 1.2 };
+  return { x, y: object.position.y - ascent, w: width, h: ascent + descent + Math.max(0, lines.length - 1) * textLineHeight(object.fontSize, object.lineHeight) };
 }
 
 export function annotationBounds(object: Annotation): Rect {
   if ('rect' in object) return object.rect;
   if ('start' in object) return rectFromPoints(object.start, object.end);
-  if ('points' in object) {
+  if (isPathAnnotation(object)) {
     const xs = object.points.map((point) => point.x);
     const ys = object.points.map((point) => point.y);
     return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
@@ -197,10 +198,10 @@ export function annotationHandles(object: Annotation): { handle: AnnotationHandl
     ];
     if (!object.rotation && !object.flipX && !object.flipY) return handles;
     return handles.map(({ handle, point }) => {
-      const dx = (point.x - center.x) * (object.flipX ? -1 : 1);
-      const dy = (point.y - center.y) * (object.flipY ? -1 : 1);
+      const offsetX = (point.x - center.x) * (object.flipX ? -1 : 1);
+      const offsetY = (point.y - center.y) * (object.flipY ? -1 : 1);
       const rotation = object.rotation ?? 0;
-      return { handle, point: { x: center.x + dx * Math.cos(rotation) - dy * Math.sin(rotation), y: center.y + dx * Math.sin(rotation) + dy * Math.cos(rotation) } };
+      return { handle, point: { x: center.x + offsetX * Math.cos(rotation) - offsetY * Math.sin(rotation), y: center.y + offsetX * Math.sin(rotation) + offsetY * Math.cos(rotation) } };
     });
   }
   const { x, y, w, h } = annotationBounds(object);
@@ -327,7 +328,7 @@ export function resizeFromHandle(object: Annotation, handle: AnnotationHandle, p
   const sx = bounds.w ? resized.w / bounds.w : 1;
   const sy = bounds.h ? resized.h / bounds.h : 1;
   const map = (value: Point): Point => ({ x: resized.x + (value.x - bounds.x) * sx, y: resized.y + (value.y - bounds.y) * sy });
-  if ('points' in object) return { ...object, points: object.points.map(map) };
+  if (isPathAnnotation(object)) return { ...object, points: object.points.map(map) };
   if (object.type === 'counter') return { ...object, position: map(object.position), radius: object.radius * (sx + sy) / 2 };
   return { ...object, position: map(object.position), fontSize: Math.ceil(object.fontSize * (sx + sy) / 2) };
 }

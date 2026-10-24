@@ -1,8 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createScene } from '../core/types';
-import { exportBounds, exportSize } from './export';
+import { downloadBlob, exportBounds, exportSize } from './export';
 
 describe('export sizing', () => {
+  it('keeps the download URL alive through the click', () => {
+    vi.useFakeTimers();
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:download', revokeObjectURL: revoke });
+    vi.stubGlobal('document', { createElement: () => ({ click: () => expect(revoke).not.toHaveBeenCalled() }) });
+    downloadBlob(new Blob(), 'image.png');
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
+    expect(revoke).toHaveBeenCalledWith('blob:download');
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
   it('applies crop, border, and output scale', () => {
     const scene = createScene();
     scene.image = { source: {} as CanvasImageSource, dataUrl: '', width: 800, height: 600 };

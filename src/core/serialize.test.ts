@@ -75,6 +75,35 @@ describe('scene serialization', () => {
     expect(restored.objects[0]).toMatchObject({ type: 'text', fontSize: 56 });
   });
 
+  it('loads older text and symbol objects with compatible defaults', () => {
+    const scene = createScene();
+    const text = createAnnotation('text', 'text', { x: 1, y: 2 }, scene.toolStyle);
+    scene.objects.push(text, { id: 'star', type: 'symbol', name: 'star', rect: { x: 0, y: 0, w: 10, h: 10 }, style: scene.toolStyle });
+    const legacy = JSON.parse(serializeScene(scene));
+    delete legacy.letterSpacing;
+    delete legacy.lineHeight;
+    delete legacy.objects[0].letterSpacing;
+    delete legacy.objects[0].lineHeight;
+    const restored = parseScene(JSON.stringify(legacy));
+    expect(restored).toMatchObject({ letterSpacing: 0, lineHeight: 1.2 });
+    expect(restored.objects[0]).toMatchObject({ letterSpacing: 0, lineHeight: 1.2 });
+    expect(restored.objects[1]).not.toHaveProperty('points');
+  });
+
+  it('clamps numeric text and symbol settings and rejects wrong types', () => {
+    const scene = createScene();
+    scene.letterSpacing = 2000;
+    scene.lineHeight = 10;
+    const text = createAnnotation('text', 'text', { x: 1, y: 2 }, scene.toolStyle);
+    if (text.type !== 'text') throw new Error('Expected text annotation');
+    text.letterSpacing = -500;
+    text.lineHeight = 0.1;
+    scene.objects.push(text);
+    scene.objects.push({ id: 'star', type: 'symbol', name: 'star', points: 30, innerRatio: 0.1, rect: { x: 0, y: 0, w: 10, h: 10 }, style: scene.toolStyle });
+    expect(parseScene(serializeScene(scene))).toMatchObject({ letterSpacing: 1000, lineHeight: 3, objects: [{ letterSpacing: -200, lineHeight: 0.5 }, { points: 24, innerRatio: 0.2 }] });
+    expect(() => parseScene(serializeScene({ ...scene, letterSpacing: 'wide' } as never))).toThrow('Invalid or unsupported');
+  });
+
   it('rejects project image data above the aggregate limit', () => {
     const scene = createScene();
     scene.objects.push({

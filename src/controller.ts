@@ -13,6 +13,7 @@ import { loadUploadedFonts, saveUploadedFont } from './fonts/uploaded';
 import { icon } from './ui/icons';
 import { DEFAULT_SELECTION_COLOR, setSelectionColor } from './render/renderer';
 import { annotationBounds, resizeAnnotationToBounds } from './core/annotations';
+import { sceneSources } from './core/history';
 
 type MeasurementUnit = 'px' | 'in' | 'cm' | 'mm';
 
@@ -109,6 +110,15 @@ export function startApp(root: HTMLElement): void {
       statusEl.textContent = text;
     },
   });
+  const openDialog = (dialog: HTMLDialogElement, invoker: HTMLElement) => {
+    const menu = invoker.closest('details.app-menu');
+    const returnTo = menu?.querySelector<HTMLElement>('summary') ?? invoker;
+    dialog.showModal();
+    const heading = dialog.querySelector<HTMLElement>('h2')!;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+    dialog.addEventListener('close', () => { if (returnTo.isConnected) returnTo.focus({ preventScroll: true }); }, { once: true });
+  };
   const preferencesDialog = root.querySelector<HTMLDialogElement>('#preferences-dialog')!;
   const measurementUnitInput = preferencesDialog.querySelector<HTMLSelectElement>('[name="measurementUnit"]')!;
   const measurementPpiInput = preferencesDialog.querySelector<HTMLInputElement>('[name="measurementPpi"]')!;
@@ -120,12 +130,12 @@ export function startApp(root: HTMLElement): void {
     measurementResolutionField.hidden = !usesPhysicalUnits;
   };
   measurementUnitInput.addEventListener('change', syncPreferenceInputs);
-  root.querySelector<HTMLButtonElement>('[data-action="preferences"]')!.addEventListener('click', () => {
+  root.querySelector<HTMLButtonElement>('[data-action="preferences"]')!.addEventListener('click', (event) => {
     measurementUnitInput.value = preferences.measurementUnit;
     measurementPpiInput.value = String(preferences.measurementPpi);
     selectionColorInput.value = preferences.selectionColor;
     syncPreferenceInputs();
-    preferencesDialog.showModal();
+    openDialog(preferencesDialog, event.currentTarget as HTMLElement);
   });
   preferencesDialog.addEventListener('close', () => {
     if (preferencesDialog.returnValue !== 'apply') return;
@@ -150,7 +160,9 @@ export function startApp(root: HTMLElement): void {
       const activeTool = button.dataset.tool as Tool;
       toolStyles.set(scene.activeTool, { ...scene.toolStyle });
       const toolStyle = toolStyles.get(activeTool) ?? { ...scene.toolStyle, opacity: 1 };
-      store.set({ activeTool, toolStyle, selectedId: null, selectedIds: [], marquee: null });
+      canvasHost.cancelGesture();
+      store.set({ activeTool, toolStyle, selectedId: null, selectedIds: [], marquee: null, crop: null });
+      if (activeTool === 'crop') updateCropRatio();
       if (activeTool === 'image') canvasHost.openImage('place');
     });
   }
@@ -173,7 +185,7 @@ export function startApp(root: HTMLElement): void {
     const menu = event.target.closest<HTMLDetailsElement>('details');
     if (!menu) return;
     menu.open = false;
-    menu.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true });
+    if (!root.querySelector('dialog[open]')) menu.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true });
   });
   const appMenus = [...root.querySelectorAll<HTMLDetailsElement>('details.app-menu')];
   const closeMenus = (except?: HTMLDetailsElement) => {
@@ -249,9 +261,14 @@ export function startApp(root: HTMLElement): void {
   const arrowStart = root.querySelector<HTMLSelectElement>('[data-style="arrow-start"]')!;
   const arrowEnd = root.querySelector<HTMLSelectElement>('[data-style="arrow-end"]')!;
   const symbol = root.querySelector<HTMLSelectElement>('[data-style="symbol"]')!;
+  const symbolPoints = root.querySelector<HTMLInputElement>('[data-style="symbol-points"]')!;
+  const symbolInnerRatio = root.querySelector<HTMLInputElement>('[data-style="symbol-inner-ratio"]')!;
+  const symbolSides = root.querySelector<HTMLInputElement>('[data-style="symbol-sides"]')!;
   const font = root.querySelector<HTMLSelectElement>('[data-style="font"]')!;
   const watermarkFont = root.querySelector<HTMLSelectElement>('[name="watermarkFont"]')!;
   const fontSize = root.querySelector<HTMLInputElement>('[data-style="font-size"]')!;
+  const letterSpacing = root.querySelector<HTMLInputElement>('[data-style="letter-spacing"]')!;
+  const lineHeight = root.querySelector<HTMLInputElement>('[data-style="line-height"]')!;
   const fontSizePreset = root.querySelector<HTMLSelectElement>('[data-style="font-size-preset"]')!;
   const fontWeight = root.querySelector<HTMLSelectElement>('[data-style="font-weight"]')!;
   const fontStyle = root.querySelector<HTMLSelectElement>('[data-style="font-style"]')!;
@@ -368,10 +385,15 @@ export function startApp(root: HTMLElement): void {
       marquee: null,
       toolStyle: { ...activeStyle },
       symbolName: defaults.symbolName,
+      symbolPoints: defaults.symbolPoints,
+      symbolInnerRatio: defaults.symbolInnerRatio,
+      symbolSides: defaults.symbolSides,
       arrowStartHead: defaults.arrowStartHead,
       arrowEndHead: defaults.arrowEndHead,
       fontFamily: defaults.fontFamily,
       fontSize: defaults.fontSize,
+      letterSpacing: defaults.letterSpacing,
+      lineHeight: defaults.lineHeight,
       fontWeight: defaults.fontWeight,
       fontStyle: defaults.fontStyle,
       textUnderline: defaults.textUnderline,
@@ -448,6 +470,7 @@ export function startApp(root: HTMLElement): void {
       const groups = element.dataset.options!.split(' ');
       element.hidden = !groups.some((group) => visible.has(group) || (group === 'select' && context === 'select'));
     }
+    for (const element of root.querySelectorAll<HTMLElement>('[data-symbol-param]')) element.hidden = !visible.has('symbol') || element.dataset.symbolParam !== (selected?.type === 'symbol' ? selected.name : scene.symbolName);
     applyCropButton.hidden = context !== 'crop' || !scene.crop || scene.crop.w < 1 || scene.crop.h < 1;
     const activeButton = toolButtons.find((button) => button.dataset.tool === scene.activeTool);
     const multi = layerSelection.length > 1;
@@ -507,7 +530,7 @@ export function startApp(root: HTMLElement): void {
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="copy"], [data-action="export"], [data-action="frame"], [data-action="transform"], [data-action="save-project"]')) button.disabled = !scene.image;
     renderLayers(scene);
     const active = document.activeElement;
-    if (!active || !([color, strokeEnabled, fillEnabled, fill, railColor, railFill, width, opacity, lineCap, lineJoin, arrowStart, arrowEnd, symbol, font, fontSize, fontSizePreset, fontWeight, fontStyle, textUnderline, textAlign, redactionMode, redactionStrength, counterShape, counterFormat, counterValue, counterNext, counterSize, counterFontSize, counterFont, counterTextColor] as Element[]).includes(active)) {
+    if (!active || !([color, strokeEnabled, fillEnabled, fill, railColor, railFill, width, opacity, lineCap, lineJoin, arrowStart, arrowEnd, symbol, symbolPoints, symbolInnerRatio, symbolSides, font, fontSize, fontSizePreset, letterSpacing, lineHeight, fontWeight, fontStyle, textUnderline, textAlign, redactionMode, redactionStrength, counterShape, counterFormat, counterValue, counterNext, counterSize, counterFontSize, counterFont, counterTextColor] as Element[]).includes(active)) {
       color.value = style.color;
       railColor.value = style.color;
       strokeEnabled.checked = !supportsStrokeToggle || style.stroke !== false;
@@ -532,10 +555,15 @@ export function startApp(root: HTMLElement): void {
       root.querySelector<HTMLOutputElement>('[data-value="opacity"]')!.value = `${opacity.value}%`;
       const colorLabel = root.querySelector<HTMLElement>('[data-style-label="color"]')!;
       colorLabel.textContent = context === 'counter' ? 'Shape color' : supportsStrokeToggle || context === 'text' ? 'Color' : 'Stroke';
-      if (selected?.type === 'symbol') symbol.value = selected.name;
+      symbol.value = selected?.type === 'symbol' ? selected.name : scene.symbolName;
+      symbolPoints.value = String(selected?.type === 'symbol' ? selected.points ?? 5 : scene.symbolPoints);
+      symbolInnerRatio.value = String(selected?.type === 'symbol' ? selected.innerRatio ?? 0.43 : scene.symbolInnerRatio);
+      symbolSides.value = String(selected?.type === 'symbol' ? selected.sides ?? 6 : scene.symbolSides);
       if (context === 'text') {
         font.value = selected?.type === 'text' ? selected.fontFamily : scene.fontFamily;
         fontSize.value = String(Math.ceil(selected?.type === 'text' ? selected.fontSize : scene.fontSize));
+        letterSpacing.value = String(selected?.type === 'text' ? selected.letterSpacing ?? 0 : scene.letterSpacing);
+        lineHeight.value = String(selected?.type === 'text' ? selected.lineHeight ?? 1.2 : scene.lineHeight);
         fontSizePreset.value = [...fontSizePreset.options].some((option) => option.value === fontSize.value) ? fontSize.value : '';
         fontWeight.value = selected?.type === 'text' ? selected.fontWeight : scene.fontWeight;
         fontStyle.value = selected?.type === 'text' ? selected.fontStyle ?? 'normal' : scene.fontStyle;
@@ -983,8 +1011,46 @@ export function startApp(root: HTMLElement): void {
     store.update((scene) => ({
       ...scene,
       symbolName,
-      objects: scene.objects.map((object) => object.id === scene.selectedId && object.type === 'symbol' ? { ...object, name: symbolName } : object),
+      objects: scene.objects.map((object) => selectedLayerIds(scene).includes(object.id) && object.type === 'symbol' ? { ...object, name: symbolName, points: scene.symbolPoints, innerRatio: scene.symbolInnerRatio, sides: scene.symbolSides } : object),
     }));
+  });
+  const symbolSearch = root.querySelector<HTMLInputElement>('[data-symbol-search]')!;
+  const symbolChoices = root.querySelector<HTMLElement>('[data-choice-for="symbol"]')!;
+  const visibleSymbols = () => [...symbolChoices.querySelectorAll<HTMLButtonElement>('[data-value]')]
+    .filter((button) => !button.hidden && !button.closest<HTMLElement>('[data-symbol-group]')?.hidden);
+  symbolSearch.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    visibleSymbols()[0]?.focus();
+  });
+  symbolChoices.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    const buttons = visibleSymbols();
+    const index = buttons.indexOf(event.target as HTMLButtonElement);
+    if (index < 0) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+      : Math.max(0, Math.min(buttons.length - 1, index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1)));
+    buttons[next]?.focus();
+  });
+  symbolSearch.addEventListener('input', (event) => {
+    const query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    for (const group of root.querySelectorAll<HTMLElement>('[data-symbol-group]')) {
+      let shown = 0;
+      for (const button of group.querySelectorAll<HTMLButtonElement>('[data-value]')) {
+        button.hidden = !button.getAttribute('aria-label')?.toLowerCase().includes(query);
+        if (!button.hidden) shown++;
+      }
+      group.hidden = shown === 0;
+    }
+  });
+  for (const input of [symbolPoints, symbolInnerRatio, symbolSides]) input.addEventListener('change', () => {
+    canvasHost.checkpoint();
+    const points = Math.max(3, Math.min(24, Math.round(Number(symbolPoints.value) || 5)));
+    const innerRatio = Math.max(0.2, Math.min(0.9, Number(symbolInnerRatio.value) || 0.43));
+    const sides = Math.max(3, Math.min(12, Math.round(Number(symbolSides.value) || 6)));
+    store.update((scene) => ({ ...scene, symbolPoints: points, symbolInnerRatio: innerRatio, symbolSides: sides,
+      objects: scene.objects.map((object) => selectedLayerIds(scene).includes(object.id) && object.type === 'symbol' ? { ...object, points, innerRatio, sides } : object) }));
   });
 
   function zoom(factor: number): void {
@@ -1004,15 +1070,21 @@ export function startApp(root: HTMLElement): void {
   function updateTextStyle(): void {
     const family = font.value;
     const size = Math.max(8, Math.ceil(Number(fontSize.value) || 8));
+    const tracking = Math.max(-200, Math.min(1000, Math.round(Number(letterSpacing.value) || 0)));
+    const leading = Math.max(0.5, Math.min(3, Number(lineHeight.value) || 1.2));
+    letterSpacing.value = String(tracking);
+    lineHeight.value = String(leading);
     store.update((scene) => ({
       ...scene,
       fontFamily: family,
       fontSize: size,
+      letterSpacing: tracking,
+      lineHeight: leading,
       fontWeight: fontWeight.value as Scene['fontWeight'],
       fontStyle: fontStyle.value as Scene['fontStyle'],
       textUnderline: textUnderline.checked,
       textAlign: textAlign.value as Scene['textAlign'],
-      objects: scene.objects.map((object) => object.id === scene.selectedId && object.type === 'text' ? { ...object, fontFamily: family, fontSize: size, fontWeight: fontWeight.value as Scene['fontWeight'], fontStyle: fontStyle.value as Scene['fontStyle'], underline: textUnderline.checked, align: textAlign.value as Scene['textAlign'] } : object),
+      objects: scene.objects.map((object) => selectedLayerIds(scene).includes(object.id) && object.type === 'text' ? { ...object, fontFamily: family, fontSize: size, letterSpacing: tracking, lineHeight: leading, fontWeight: fontWeight.value as Scene['fontWeight'], fontStyle: fontStyle.value as Scene['fontStyle'], underline: textUnderline.checked, align: textAlign.value as Scene['textAlign'] } : object),
     }));
     boldButton.setAttribute('aria-pressed', String(fontWeight.value === 'bold'));
     italicButton.setAttribute('aria-pressed', String(fontStyle.value === 'italic'));
@@ -1021,6 +1093,7 @@ export function startApp(root: HTMLElement): void {
   font.addEventListener('change', updateTextStyle);
   fontSize.addEventListener('input', () => { fontSizePreset.value = [...fontSizePreset.options].some((option) => option.value === fontSize.value) ? fontSize.value : ''; updateTextStyle(); });
   fontSize.addEventListener('change', () => { fontSize.value = String(Math.max(8, Math.ceil(Number(fontSize.value) || 8))); fontSizePreset.value = [...fontSizePreset.options].some((option) => option.value === fontSize.value) ? fontSize.value : ''; updateTextStyle(); });
+  for (const input of [letterSpacing, lineHeight]) input.addEventListener('change', () => { canvasHost.checkpoint(); updateTextStyle(); });
   fontWeight.addEventListener('change', updateTextStyle);
   fontStyle.addEventListener('change', updateTextStyle);
   textUnderline.addEventListener('change', updateTextStyle);
@@ -1078,22 +1151,28 @@ export function startApp(root: HTMLElement): void {
 
   async function restore(dto: SerializedScene, canApply: () => boolean = () => true): Promise<boolean> {
     await uploadedFontsReady;
-    const image = dto.image ? await decodeImageDataUrl(dto.image.dataUrl) : null;
-    const objects: Scene['objects'] = [];
-    for (const object of dto.objects) objects.push(object.type === 'image'
-      ? { ...object, source: (await decodeImageDataUrl(object.dataUrl)).source }
-      : object);
-    const watermark = dto.watermark?.kind === 'image'
-      ? { ...dto.watermark, source: (await decodeImageDataUrl(dto.watermark.dataUrl)).source }
-      : dto.watermark;
-    if (!canApply()) {
-      closeSource(image?.source);
-      for (const object of objects) if (object.type === 'image') closeSource(object.source);
-      if (watermark?.kind === 'image') closeSource(watermark.source);
-      return false;
+    const decoded: CanvasImageSource[] = [];
+    const decode = async (dataUrl: string): Promise<CanvasImageSource> => {
+      const source = (await decodeImageDataUrl(dataUrl)).source;
+      decoded.push(source);
+      return source;
+    };
+    try {
+      const image = dto.image ? { ...dto.image, source: await decode(dto.image.dataUrl) } : null;
+      const objects: Scene['objects'] = [];
+      for (const object of dto.objects) objects.push(object.type === 'image'
+        ? { ...object, source: await decode(object.dataUrl) }
+        : object);
+      const watermark = dto.watermark?.kind === 'image'
+        ? { ...dto.watermark, source: await decode(dto.watermark.dataUrl) }
+        : dto.watermark;
+      if (!canApply()) return false;
+      canvasHost.setScene({ ...dto, image, objects, watermark, showOverflow: dto.showOverflow ?? false, arrowStartHead: dto.arrowStartHead ?? 'none', arrowEndHead: dto.arrowEndHead ?? 'open', fontStyle: dto.fontStyle ?? 'normal', textUnderline: dto.textUnderline ?? false, letterSpacing: dto.letterSpacing ?? 0, lineHeight: dto.lineHeight ?? 1.2, symbolPoints: dto.symbolPoints ?? 5, symbolInnerRatio: dto.symbolInnerRatio ?? 0.43, symbolSides: dto.symbolSides ?? 6, counterFormat: dto.counterFormat ?? 'numeric', counterNext: dto.counterNext ?? Math.max(1, ...dto.objects.filter((object) => object.type === 'counter').map((object) => object.n + 1)), counterFontSize: dto.counterFontSize ?? dto.counterSize ?? 18, counterFontFamily: dto.counterFontFamily ?? 'system-ui', counterTextColor: dto.counterTextColor ?? '#ffffff', selectedId: null, selectedIds: [], marquee: null });
+      return true;
+    } finally {
+      const retained = new Set(sceneSources(store.get()));
+      for (const source of decoded) if (!retained.has(source)) closeSource(source);
     }
-    canvasHost.setScene({ ...dto, image, objects, watermark, showOverflow: dto.showOverflow ?? false, arrowStartHead: dto.arrowStartHead ?? 'none', arrowEndHead: dto.arrowEndHead ?? 'open', fontStyle: dto.fontStyle ?? 'normal', textUnderline: dto.textUnderline ?? false, counterFormat: dto.counterFormat ?? 'numeric', counterNext: dto.counterNext ?? Math.max(1, ...dto.objects.filter((object) => object.type === 'counter').map((object) => object.n + 1)), counterFontSize: dto.counterFontSize ?? dto.counterSize ?? 18, counterFontFamily: dto.counterFontFamily ?? 'system-ui', counterTextColor: dto.counterTextColor ?? '#ffffff', selectedId: null, selectedIds: [], marquee: null });
-    return true;
   }
 
   try {
@@ -1163,9 +1242,9 @@ export function startApp(root: HTMLElement): void {
     store.set({ showOverflow });
     statusEl.textContent = showOverflow ? 'Overflow visible and included in export' : 'Overflow hidden';
   });
-  root.querySelector<HTMLButtonElement>('[data-action="about"]')!.addEventListener('click', () => root.querySelector<HTMLDialogElement>('#about-dialog')!.showModal());
-  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="export"]')) button.addEventListener('click', () => {
-    if (store.get().image) { syncExportOptions(); dialog.showModal(); }
+  root.querySelector<HTMLButtonElement>('[data-action="about"]')!.addEventListener('click', (event) => openDialog(root.querySelector<HTMLDialogElement>('#about-dialog')!, event.currentTarget as HTMLElement));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="export"]')) button.addEventListener('click', (event) => {
+    if (store.get().image) { syncExportOptions(); openDialog(dialog, event.currentTarget as HTMLElement); }
   });
   dialog.addEventListener('close', async () => {
     if (dialog.returnValue !== 'download') return;
@@ -1232,7 +1311,7 @@ export function startApp(root: HTMLElement): void {
   watermarkBoldButton.addEventListener('click', () => { watermarkBoldInput.checked = !watermarkBoldInput.checked; syncWatermarkFormat(); });
   watermarkItalicButton.addEventListener('click', () => { watermarkItalicInput.checked = !watermarkItalicInput.checked; syncWatermarkFormat(); });
   watermarkAngleInput.addEventListener('input', syncWatermarkAngle);
-  root.querySelector<HTMLButtonElement>('[data-action="frame"]')!.addEventListener('click', () => {
+  root.querySelector<HTMLButtonElement>('[data-action="frame"]')!.addEventListener('click', (event) => {
     const scene = store.get();
     const watermark = scene.watermark;
     borderWidthInput.value = String(scene.border?.width ?? 0);
@@ -1250,7 +1329,7 @@ export function startApp(root: HTMLElement): void {
     watermarkTileInput.checked = watermark?.tile ?? false;
     syncWatermarkAngle();
     syncWatermarkFormat();
-    frameDialog.showModal();
+    openDialog(frameDialog, event.currentTarget as HTMLElement);
   });
   frameDialog.addEventListener('close', async () => {
     if (frameDialog.returnValue === 'remove-watermark') {
@@ -1269,19 +1348,19 @@ export function startApp(root: HTMLElement): void {
       const currentWatermark = store.get().watermark;
       const existingImage = currentWatermark?.kind === 'image' ? currentWatermark : null;
       const angle = Math.max(-180, Math.min(180, Number(form.get('watermarkAngle'))));
-      const opacity = Number(form.get('watermarkOpacity')) / 100;
+      const watermarkOpacity = Number(form.get('watermarkOpacity')) / 100;
       const tile = form.get('watermarkTile') === 'on';
       canvasHost.checkpointScene();
       store.set({
         border: borderWidth ? { width: borderWidth, color: String(form.get('borderColor')) } : null,
         watermark: watermarkImage ? {
           kind: 'image', dataUrl: watermarkImage.dataUrl, source: watermarkImage.source,
-          scale: Number(form.get('watermarkScale')) / 100, opacity, tile, angle,
+          scale: Number(form.get('watermarkScale')) / 100, opacity: watermarkOpacity, tile, angle,
         } : watermarkText ? {
           kind: 'text', text: watermarkText, size: Math.max(8, Number(form.get('watermarkSize'))), color: String(form.get('watermarkColor')),
-          opacity, tile, angle, fontFamily: String(form.get('watermarkFont')), fontWeight: form.get('watermarkBold') === 'on' ? 'bold' : 'normal',
+          opacity: watermarkOpacity, tile, angle, fontFamily: String(form.get('watermarkFont')), fontWeight: form.get('watermarkBold') === 'on' ? 'bold' : 'normal',
           fontStyle: form.get('watermarkItalic') === 'on' ? 'italic' : 'normal',
-        } : existingImage ? { ...existingImage, scale: Number(form.get('watermarkScale')) / 100, opacity, tile, angle } : null,
+        } : existingImage ? { ...existingImage, scale: Number(form.get('watermarkScale')) / 100, opacity: watermarkOpacity, tile, angle } : null,
       });
       statusEl.textContent = 'Frame settings applied';
     } catch (error) {
@@ -1299,6 +1378,8 @@ export function startApp(root: HTMLElement): void {
     const crop = scene.crop;
     if (!image || !crop || crop.w < 1 || crop.h < 1) { statusEl.textContent = 'Draw a crop area first'; return; }
     if (crop.w * crop.h > 134_000_000) { statusEl.textContent = 'Crop dimensions are too large'; return; }
+    canvasHost.cancelGesture();
+    store.set({ crop: null, marquee: null, selectedId: null, selectedIds: [] });
     canvasHost.checkpointScene();
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(crop.w);
@@ -1311,12 +1392,26 @@ export function startApp(root: HTMLElement): void {
       activeTool: 'select',
       selectedId: null,
       selectedIds: [],
+      marquee: null,
       viewport: fitViewport(canvas.width, canvas.height, stageHost.clientWidth, stageHost.clientHeight),
     });
     statusEl.textContent = `Cropped to ${canvas.width} x ${canvas.height}`;
   }
   root.querySelector<HTMLButtonElement>('[data-action="apply-crop"]')!.addEventListener('click', applyCrop);
-  root.querySelector<HTMLButtonElement>('[data-action="cancel-crop"]')!.addEventListener('click', () => store.set({ crop: null, activeTool: 'select' }));
+  root.querySelector<HTMLButtonElement>('[data-action="cancel-crop"]')!.addEventListener('click', () => { canvasHost.cancelGesture(); store.set({ crop: null, marquee: null, selectedId: null, selectedIds: [], activeTool: 'select' }); });
+  const cropRatioInput = root.querySelector<HTMLSelectElement>('[data-style="crop-ratio"]')!;
+  let cropOrientationSwapped = false;
+  const updateCropRatio = () => {
+    const image = store.get().image;
+    const values: Record<string, number> = { '1:1': 1, '4:3': 4 / 3, '3:2': 3 / 2, '16:9': 16 / 9 };
+    const ratio = cropRatioInput.value === 'original' ? image && image.width / image.height : values[cropRatioInput.value];
+    canvasHost.setCropRatio(ratio ? cropOrientationSwapped ? 1 / ratio : ratio : undefined);
+  };
+  cropRatioInput.addEventListener('change', () => { cropOrientationSwapped = false; updateCropRatio(); });
+  root.querySelector<HTMLButtonElement>('[data-action="swap-crop-ratio"]')!.addEventListener('click', () => { cropOrientationSwapped = !cropOrientationSwapped; updateCropRatio(); });
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && document.activeElement === stageHost && store.get().activeTool === 'crop') { event.preventDefault(); applyCrop(); }
+  });
 
   function transformedImage(transform: FrameTransform): LoadedImage | null {
     const image = store.get().image;
@@ -1343,8 +1438,8 @@ export function startApp(root: HTMLElement): void {
   const syncResizeDimension = (source: 'width' | 'height') => {
     if (!lockAspectInput.checked) return;
     if (source === 'width') {
-      const width = Number(resizeWidthInput.value);
-      if (Number.isFinite(width) && width > 0) resizeHeightInput.value = String(resizeDimension(width / transformAspectRatio));
+      const nextWidth = Number(resizeWidthInput.value);
+      if (Number.isFinite(nextWidth) && nextWidth > 0) resizeHeightInput.value = String(resizeDimension(nextWidth / transformAspectRatio));
     } else {
       const height = Number(resizeHeightInput.value);
       if (Number.isFinite(height) && height > 0) resizeWidthInput.value = String(resizeDimension(height * transformAspectRatio));
@@ -1353,33 +1448,35 @@ export function startApp(root: HTMLElement): void {
   resizeWidthInput.addEventListener('change', () => syncResizeDimension('width'));
   resizeHeightInput.addEventListener('change', () => syncResizeDimension('height'));
   lockAspectInput.addEventListener('change', () => syncResizeDimension('width'));
-  root.querySelector<HTMLButtonElement>('[data-action="transform"]')!.addEventListener('click', () => {
+  root.querySelector<HTMLButtonElement>('[data-action="transform"]')!.addEventListener('click', (event) => {
     const image = store.get().image;
     if (!image) { statusEl.textContent = 'Load an image first'; return; }
     transformAspectRatio = image.width / image.height;
     resizeWidthInput.value = String(image.width);
     resizeHeightInput.value = String(image.height);
-    transformDialog.showModal();
+    openDialog(transformDialog, event.currentTarget as HTMLElement);
   });
   transformDialog.addEventListener('close', () => {
     const action = transformDialog.returnValue;
     if (action === 'cancel' || !store.get().image) return;
     const scene = store.get();
     const image = scene.image!;
+    canvasHost.cancelGesture();
+    store.set({ crop: null, marquee: null, selectedId: null, selectedIds: [] });
     canvasHost.checkpointScene();
     if (action === 'resize') {
       const form = new FormData(transformDialog.querySelector('form')!);
-      const width = Math.max(1, Math.min(16_384, Math.round(Number(form.get('resizeWidth')))));
-      const height = Math.max(1, Math.min(16_384, form.get('lockAspect') === 'on' ? Math.round(width * image.height / image.width) : Math.round(Number(form.get('resizeHeight')))));
-      if (width * height > 134_000_000) { statusEl.textContent = 'Resize dimensions are too large'; return; }
+      const resizeWidth = Math.max(1, Math.min(16_384, Math.round(Number(form.get('resizeWidth')))));
+      const height = Math.max(1, Math.min(16_384, form.get('lockAspect') === 'on' ? Math.round(resizeWidth * image.height / image.width) : Math.round(Number(form.get('resizeHeight')))));
+      if (resizeWidth * height > 134_000_000) { statusEl.textContent = 'Resize dimensions are too large'; return; }
       const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = height;
-      canvas.getContext('2d')!.drawImage(image.source, 0, 0, width, height);
-      store.set({ image: imageFromCanvas(canvas), objects: scene.objects.map((object) => scaleAnnotation(object, width / image.width, height / image.height)), crop: null, viewport: fitViewport(width, height, stageHost.clientWidth, stageHost.clientHeight) });
+      canvas.width = resizeWidth; canvas.height = height;
+      canvas.getContext('2d')!.drawImage(image.source, 0, 0, resizeWidth, height);
+      store.set({ image: imageFromCanvas(canvas), objects: scene.objects.map((object) => scaleAnnotation(object, resizeWidth / image.width, height / image.height)), crop: null, marquee: null, selectedId: null, selectedIds: [], viewport: fitViewport(resizeWidth, height, stageHost.clientWidth, stageHost.clientHeight) });
       return;
     }
     const transform = action as FrameTransform;
     const nextImage = transformedImage(transform)!;
-    store.set({ image: nextImage, objects: scene.objects.map((object) => transformAnnotation(object, transform, image.width, image.height)), crop: null, viewport: fitViewport(nextImage.width, nextImage.height, stageHost.clientWidth, stageHost.clientHeight) });
+    store.set({ image: nextImage, objects: scene.objects.map((object) => transformAnnotation(object, transform, image.width, image.height)), crop: null, marquee: null, selectedId: null, selectedIds: [], viewport: fitViewport(nextImage.width, nextImage.height, stageHost.clientWidth, stageHost.clientHeight) });
   });
 }

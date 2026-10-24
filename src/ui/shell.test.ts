@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { renderShell } from './shell';
+import { SYMBOL_PALETTE } from '../core/material-symbols';
 
 describe('renderShell', () => {
   it('renders the version and repository link in the footer', () => {
     const root = document.createElement('div');
     renderShell(root);
-    expect(root.querySelector('.app-version')?.textContent).toContain('v');
     const repoLink = root.querySelector<HTMLAnchorElement>('footer .repo-link');
     expect(repoLink?.href).toBe('https://github.com/bradsec/imagemarkup');
-    expect(repoLink?.textContent).toBe('github.com/bradsec/imagemarkup');
-    expect(repoLink?.getAttribute('aria-label')).toBe('imagemarkup on GitHub');
+    expect(repoLink?.querySelector('svg')).toBeTruthy();
+    expect(repoLink?.querySelector('.visually-hidden')?.textContent).toBe(' on GitHub');
+    expect(repoLink?.querySelector('.app-version')?.textContent).toMatch(/^v\d/);
+    expect(repoLink?.textContent).toMatch(/^imagemarkup on GitHubv\d/);
+    expect(root.querySelector('#status')?.getAttribute('aria-live')).toBe('polite');
   });
 
   it('returns a stage host and status element', () => {
@@ -20,6 +23,8 @@ describe('renderShell', () => {
     expect(statusEl).toBeTruthy();
     expect(stageHost.tabIndex).toBe(0);
     expect(stageHost.getAttribute('aria-describedby')).toBe('canvas-instructions');
+    expect(stageHost.querySelector('.load-error[hidden] [role="alert"]')).toBeTruthy();
+    expect(stageHost.querySelector('.load-error button')?.textContent).toBe('Dismiss');
   });
 
   it('keeps repository access in About and offers settings reset in File', () => {
@@ -28,7 +33,10 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-action="reset-settings"]')).toBeTruthy();
     expect([...root.querySelectorAll('.app-menu')].find((menu) => menu.querySelector('summary')?.textContent === 'Help')?.textContent).not.toContain('GitHub repository');
     expect(root.querySelector('#about-dialog a[href="https://github.com/bradsec/imagemarkup"]')).toBeTruthy();
-    expect(root.querySelector('.about-support-copy')?.textContent).toBe('If you find this useful, please consider starring the repository. It helps others discover the project.');
+    expect(root.querySelector('.about-support-copy')?.textContent).toBe('If you find this useful, please consider starring the repository. It helps others discover the project. You can also buy me a coffee.');
+    expect(root.querySelector('#about-dialog a[href="https://buymeacoffee.com/markbradley"]')?.textContent).toBe('buy me a coffee');
+    expect(root.querySelector('#about-dialog a[href="./THIRD-PARTY-LICENSES.txt"]')?.textContent).toBe('View third-party licenses');
+    expect(root.querySelector('.about-repo-link svg')).toBeNull();
   });
 
   it('uses native disclosure and list semantics for composite controls', () => {
@@ -55,7 +63,7 @@ describe('renderShell', () => {
     const root = document.createElement('div');
     renderShell(root);
     const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-choice-for="symbol"] button')];
-    expect(buttons).toHaveLength(21);
+    expect(buttons).toHaveLength(SYMBOL_PALETTE.length);
     expect(buttons.map((button) => button.dataset.value)).not.toContain('hand-stop');
     expect(buttons.every((button) => button.children.length === 1 && button.firstElementChild?.matches('svg.symbol-preview'))).toBe(true);
     expect(buttons.every((button) => ['0 -960 960 960', '0 0 512 512'].includes(button.firstElementChild?.getAttribute('viewBox') ?? ''))).toBe(true);
@@ -137,11 +145,11 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-action="preferences"]')).toBeTruthy();
     expect(root.querySelectorAll('h1')).toHaveLength(1);
     expect(root.querySelector('h1.brand')?.textContent).toContain('imagemarkup');
-    expect(root.querySelectorAll('#about-dialog a')).toHaveLength(2);
+    expect(root.querySelectorAll('#about-dialog a')).toHaveLength(4);
     expect(root.querySelector('#preferences-dialog [name="measurementUnit"]')).toBeTruthy();
     expect(root.querySelector('#preferences-dialog [data-preference="measurement-resolution"]')?.hasAttribute('hidden')).toBe(true);
     expect(root.querySelector('#preferences-dialog [name="selectionColor"]')).toBeTruthy();
-    expect(root.querySelectorAll('[data-choice-for="symbol"] [data-value]')).toHaveLength(21);
+    expect(root.querySelectorAll('[data-choice-for="symbol"] [data-value]')).toHaveLength(SYMBOL_PALETTE.length);
     expect(root.querySelector('[data-choice-for="symbol"] [data-value="pin"][aria-label="Map marker symbol"]')).toBeTruthy();
     expect(root.querySelector('[data-choice-for="symbol"] [data-value="target"][aria-label="Target reticle symbol"]')).toBeTruthy();
     expect(root.querySelector('[data-choice-for="symbol"] [data-value="eye"] .symbol-preview')).toBeTruthy();

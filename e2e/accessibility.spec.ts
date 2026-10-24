@@ -20,7 +20,7 @@ test('has no automatically detectable WCAG A or AA violations in primary states'
 
   await loadImage(page);
   await page.locator('[data-tool="rect"]').click();
-  const canvas = await page.locator('canvas').boundingBox();
+  const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   await page.mouse.move(canvas.x + canvas.width / 2 - 30, canvas.y + canvas.height / 2 - 20);
   await page.mouse.down();
@@ -39,13 +39,16 @@ test('keeps primary regions and touch targets usable at 320 by 256 CSS pixels', 
   const header = await page.locator('.app-header').boundingBox();
   const tools = await page.locator('.toolrail').boundingBox();
   expect(header?.y).toBe(0);
+  await expect(page.locator('#status')).toBeVisible();
+  await expect(page.locator('footer .repo-link')).toBeHidden();
   expect(tools?.y).toBeGreaterThanOrEqual(header?.height ?? 0);
   expect((tools?.y ?? 0) + (tools?.height ?? 0)).toBeLessThanOrEqual(256);
 
+  const targetSize = await page.evaluate(() => matchMedia('(pointer: coarse)').matches) ? 44 : 24;
   for (const control of await page.locator('.tool-colors input, .tool-colors button').all()) {
     const box = await control.boundingBox();
-    expect(box?.width).toBeGreaterThanOrEqual(24);
-    expect(box?.height).toBeGreaterThanOrEqual(24);
+    expect(box?.width).toBeGreaterThanOrEqual(targetSize);
+    expect(box?.height).toBeGreaterThanOrEqual(targetSize);
   }
 });
 
@@ -78,10 +81,36 @@ test('returns focus to a disclosure when Escape closes it', async ({ page }) => 
   await expect(page.locator('details.app-menu').first()).not.toHaveAttribute('open', '');
 });
 
+test('focuses a dialog heading and returns to the invoking menu on close', async ({ page }) => {
+  await page.goto('/');
+  const help = page.getByText('Help', { exact: true });
+  await help.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#about-title')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(help).toBeFocused();
+});
+
+test('shows focus and selected controls in forced colors', async ({ page }) => {
+  await page.emulateMedia({ forcedColors: 'active' });
+  await loadImage(page);
+  const selectedTool = page.locator('.toolrail [data-tool="rect"]');
+  await selectedTool.click();
+  const selectedSwatch = page.locator('[data-color-presets="color"] button[data-color="#ff0000"]');
+  await selectedSwatch.click();
+  await selectedTool.focus();
+  for (const control of [selectedTool, selectedSwatch]) {
+    await expect(control).toHaveCSS('outline-style', 'solid');
+    await expect(control).toHaveCSS('outline-width', '2px');
+  }
+});
+
 test('moves a selected annotation with focused arrow keys', async ({ page }) => {
   await loadImage(page);
   await page.locator('[data-tool="rect"]').click();
-  const canvas = await page.locator('canvas').boundingBox();
+  const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   await page.mouse.move(canvas.x + canvas.width / 2 - 30, canvas.y + canvas.height / 2 - 20);
   await page.mouse.down();

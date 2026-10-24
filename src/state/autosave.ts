@@ -43,10 +43,10 @@ export async function loadAutosave(storage: Pick<AutosaveStorage, 'getItem'>, ke
 
 export function createAutosaveStorage(factory: IDBFactory): AutosaveStorage {
   const database = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = factory.open(DB_NAME, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    const openRequest = factory.open(DB_NAME, 1);
+    openRequest.onupgradeneeded = () => openRequest.result.createObjectStore(STORE_NAME);
+    openRequest.onsuccess = () => resolve(openRequest.result);
+    openRequest.onerror = () => reject(openRequest.error);
   });
 
   async function request<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
