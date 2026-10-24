@@ -30,6 +30,13 @@ test('has no automatically detectable WCAG A or AA violations in primary states'
   expect(results.violations).toEqual([]);
 });
 
+test('keeps the Load image label in the button text color', async ({ page }) => {
+  await page.goto('/');
+  const button = page.locator('.empty-open-button');
+  const colors = await button.evaluate((element) => [getComputedStyle(element).color, getComputedStyle(element.querySelector('span')!).color]);
+  expect(colors[1]).toBe(colors[0]);
+});
+
 test('keeps primary regions and touch targets usable at 320 by 256 CSS pixels', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 256 });
   await loadImage(page);

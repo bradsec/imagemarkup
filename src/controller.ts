@@ -226,10 +226,8 @@ export function startApp(root: HTMLElement): void {
     const bounds = stageHost.getBoundingClientRect();
     contextMenuInvoker = document.activeElement instanceof HTMLElement && stageHost.contains(document.activeElement) ? document.activeElement : stageHost;
     contextMenu.hidden = false;
-    const menuWidth = 190;
-    const menuHeight = 112;
-    contextMenu.style.left = `${Math.max(6, Math.min(event.clientX - bounds.left, bounds.width - menuWidth - 6))}px`;
-    contextMenu.style.top = `${Math.max(6, Math.min(event.clientY - bounds.top, bounds.height - menuHeight - 6))}px`;
+    contextMenu.style.left = `${Math.max(6, Math.min(event.clientX - bounds.left, bounds.width - contextMenu.offsetWidth - 6))}px`;
+    contextMenu.style.top = `${Math.max(6, Math.min(event.clientY - bounds.top, window.innerHeight - bounds.top - contextMenu.offsetHeight - 6))}px`;
     contextMenu.querySelector<HTMLButtonElement>('button')?.focus();
   });
   window.addEventListener('pointerdown', (event) => {
@@ -781,8 +779,8 @@ export function startApp(root: HTMLElement): void {
     layerContextMenu.querySelector<HTMLButtonElement>('[data-layer-context-action="delete"]')!.disabled = Boolean(object?.locked);
     const editorBounds = editorEl.getBoundingClientRect();
     layerContextMenu.hidden = false;
-    layerContextMenu.style.left = `${Math.max(6, Math.min(event.clientX - editorBounds.left, editorBounds.width - 196))}px`;
-    layerContextMenu.style.top = `${Math.max(6, Math.min(event.clientY - editorBounds.top, editorBounds.height - 122))}px`;
+    layerContextMenu.style.left = `${Math.max(6, Math.min(event.clientX - editorBounds.left, editorBounds.width - layerContextMenu.offsetWidth - 6))}px`;
+    layerContextMenu.style.top = `${Math.max(6, Math.min(event.clientY - editorBounds.top, window.innerHeight - editorBounds.top - layerContextMenu.offsetHeight - 6))}px`;
     layerContextMenu.querySelector<HTMLButtonElement>('button')?.focus();
   });
   const beginLayerRename = (id: string) => {

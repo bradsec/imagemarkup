@@ -24,7 +24,7 @@ Private, browser-based image annotation. Images stay on your device, and the bui
 - Crop, resize, rotate, flip, add borders, and apply angled text or image watermarks. Resizing the base image scales every existing annotation with it, including non-proportional resizing. Text watermarks support the installed and uploaded font library, bold, italic, and overlap-safe tiling.
 - Autosave locally, import/export editable `.imgmarkup` projects, and upload local fonts.
 - Export PNG or JPG at 1x/2x, with a contextual JPG quality control, download, or copy PNG to the clipboard.
-- Mouse, keyboard, pen, and touch input, including cursor zoom and two-finger pinch/pan. On mobile, browser page zoom is disabled so pinch gestures remain dedicated to the image canvas and the editor controls stay reachable.
+- Mouse, keyboard, pen, and touch input, including cursor zoom and two-finger pinch/pan. On mobile, browser page zoom is disabled so pinch gestures remain dedicated to the image canvas and the editor controls stay reachable. Menus and dialogs fit the screen and scroll vertically when needed.
 - The tool options panel shows a live sample above its controls; hover the artboard to preview the tool at its placement size.
 - The Help menu has guides for tools and drawing, editing and layers, saving and exporting, and keyboard shortcuts. Guides open before an image loads.
 
