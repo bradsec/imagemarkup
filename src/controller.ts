@@ -116,9 +116,38 @@ export function startApp(root: HTMLElement): void {
       statusEl.textContent = text;
     },
   });
+  const numericPairs = [...root.querySelectorAll<HTMLElement>('.numeric-pair:has([data-numeric-companion])')].map((pair) => {
+    const source = pair.firstElementChild as HTMLInputElement;
+    const companion = pair.querySelector<HTMLInputElement | HTMLSelectElement>('[data-numeric-companion]')!;
+    const factor = Number(companion.dataset.factor ?? 1);
+    const sync = () => {
+      const value = String(Number(source.value) * factor);
+      companion.value = companion instanceof HTMLSelectElement && ![...companion.options].some((option) => option.value === value) ? '' : value;
+    };
+    source.addEventListener('input', sync);
+    source.addEventListener('change', sync);
+    if (source.type === 'range' && source.dataset.style) {
+      companion.addEventListener('focus', canvasHost.checkpoint);
+    }
+    if (companion instanceof HTMLInputElement && companion.type === 'range') {
+      companion.addEventListener('input', () => { source.value = String(Number(companion.value) / factor); });
+    }
+    companion.addEventListener('change', () => {
+      if (!companion.value) { sync(); return; }
+      const value = Number(companion.value) / factor;
+      source.value = String(Math.max(Number(source.min), Math.min(Number(source.max), value)));
+      source.dispatchEvent(new Event('input', { bubbles: true }));
+      source.dispatchEvent(new Event('change', { bubbles: true }));
+      sync();
+    });
+    sync();
+    return sync;
+  });
+  const syncNumericPairs = () => { for (const sync of numericPairs) sync(); };
   const openDialog = (dialog: HTMLDialogElement, invoker: HTMLElement) => {
     const menu = invoker.closest('details.app-menu');
     const returnTo = menu?.querySelector<HTMLElement>('summary') ?? invoker;
+    syncNumericPairs();
     dialog.showModal();
     const heading = dialog.querySelector<HTMLElement>('h2')!;
     heading.tabIndex = -1;
@@ -701,6 +730,7 @@ export function startApp(root: HTMLElement): void {
     }
     opacity.value = String(Math.round(style.opacity * 100));
     root.querySelector<HTMLOutputElement>('[data-value="opacity"]')!.value = `${opacity.value}%`;
+    syncNumericPairs();
     strokeToggle.setAttribute('aria-pressed', String(strokeEnabled.checked));
     fillToggle.setAttribute('aria-pressed', String(fillEnabled.checked));
     boldButton.setAttribute('aria-pressed', String(fontWeight.value === 'bold'));
@@ -1119,7 +1149,7 @@ export function startApp(root: HTMLElement): void {
   });
   root.querySelector<HTMLElement>('[data-dialog-size-target="borderWidth"]')!.addEventListener('click', (event) => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-value]') : null;
-    if (button) borderWidthInput.value = button.dataset.value!;
+    if (button) { borderWidthInput.value = button.dataset.value!; borderWidthInput.dispatchEvent(new Event('input', { bubbles: true })); }
   });
 
   function reorder(front: boolean): void {
@@ -1254,7 +1284,7 @@ export function startApp(root: HTMLElement): void {
   fontSizePreset.addEventListener('change', () => {
     if (!fontSizePreset.value) return;
     fontSize.value = fontSizePreset.value;
-    updateTextStyle();
+    fontSize.dispatchEvent(new Event('change', { bubbles: true }));
   });
   function updateRedaction(): void {
     if (store.get().objects.some((object) => object.id === store.get().selectedId && object.type === 'redaction')) canvasHost.checkpoint();

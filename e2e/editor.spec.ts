@@ -995,6 +995,47 @@ test('remembers rich text defaults and offers local bundled fonts and common siz
   for (const object of scene.objects) expect(object).toMatchObject({ type: 'text', fontFamily: 'Poppins', fontSize: 48, fontWeight: 'bold', fontStyle: 'italic', underline: true, align: 'justify' });
 });
 
+test('text presets update the selected object in one undo step and show Custom for typed values', async ({ page }) => {
+  await loadImage(page);
+  const center = await canvasCenter(page);
+  await page.locator('.toolrail [data-tool="text"]').click();
+  await page.mouse.click(center.x, center.y);
+  await page.locator('.text-editor').fill('Preset text');
+  await page.keyboard.press('Escape');
+  const selectText = async () => {
+    if (await page.locator('.layers-panel').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Layers panel' }).click();
+    await page.locator('.layers-panel [data-action="select-layer"]').first().click();
+    if (await page.locator('.optionsbar').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+  };
+  await selectText();
+  const input = page.locator('[data-style="letter-spacing"]');
+  const presets = page.getByRole('combobox', { name: 'Letter spacing presets' });
+  await presets.selectOption('50');
+  expect((await saveScene(page)).objects[0]).toMatchObject({ type: 'text', letterSpacing: 50 });
+  await page.locator('#stage').focus();
+  await page.keyboard.press('Control+z');
+  expect((await saveScene(page)).objects[0]).toMatchObject({ type: 'text', letterSpacing: 0 });
+  await selectText();
+  await input.fill('37');
+  await input.blur();
+  await expect(presets).toHaveValue('');
+  expect((await saveScene(page)).objects[0]).toMatchObject({ type: 'text', letterSpacing: 37 });
+});
+
+test('symbol slider and typed value stay in sync', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.locator('[data-choice-for="symbol"] [data-value="star"]').click();
+  const points = page.locator('[data-style="symbol-points"]');
+  const slider = page.getByRole('slider', { name: 'Points slider' });
+  await points.fill('8');
+  await points.blur();
+  await expect(slider).toHaveValue('8');
+  await slider.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(points).toHaveValue('9');
+});
+
 test('text spacing changes multiline bounds, survives reload, and can be undone', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="text"]').click();

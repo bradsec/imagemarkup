@@ -167,7 +167,7 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-style="counter-fill"]')).toBeNull();
     expect(root.querySelector('[data-style="font"] option[value="Kalam"]')).toBeTruthy();
     expect(root.querySelectorAll('[data-style="font"] optgroup[label="Sans serif"] option')).toHaveLength(6);
-    expect(root.querySelectorAll('[data-style="font-size-preset"] option')).toHaveLength(16);
+    expect(root.querySelectorAll('[data-style="font-size-preset"] option')).toHaveLength(17);
     for (const label of ['Bold', 'Italic', 'Underline', 'Align left', 'Align center', 'Align right', 'Justify text']) expect(root.querySelector(`[aria-label="${label}"]`), label).toBeTruthy();
     expect(root.querySelector('#frame-dialog [name="watermarkColor"]')).toBeTruthy();
     expect(root.querySelector('#frame-dialog [name="watermarkAngle"]')).toBeTruthy();
@@ -186,5 +186,42 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-choice-for="symbol"] [data-value="target"][aria-label="Target reticle symbol"]')).toBeTruthy();
     expect(root.querySelector('[data-choice-for="symbol"] [data-value="eye"] .symbol-preview')).toBeTruthy();
     expect(root.querySelector('[data-choice-for="symbol"] [data-value^="hand-"]')).toBeNull();
+  });
+
+  it('pairs numeric settings with accessible presets and matched sliders', () => {
+    const root = document.createElement('div');
+    renderShell(root);
+    for (const [source, values] of [
+      ['letter-spacing', ['-50', '-25', '0', '25', '50', '100', '200']],
+      ['line-height', ['0.8', '1', '1.2', '1.5', '2']],
+    ] as const) {
+      const input = root.querySelector<HTMLInputElement>(`[data-style="${source}"]`)!;
+      const select = input.parentElement!.querySelector<HTMLSelectElement>('select[data-numeric-companion]')!;
+      expect(select.getAttribute('aria-label')).toMatch(/presets$/);
+      expect([...select.options].map((option) => option.value)).toEqual(['', ...values]);
+    }
+    for (const source of ['symbol-points', 'symbol-inner-ratio', 'symbol-sides']) {
+      const input = root.querySelector<HTMLInputElement>(`[data-style="${source}"]`)!;
+      const slider = input.parentElement!.querySelector<HTMLInputElement>('input[type="range"]')!;
+      expect(slider.getAttribute('aria-label')).toBeTruthy();
+      expect(Number(slider.min)).toBe(Number(input.min) * Number(slider.dataset.factor ?? 1));
+      expect(Number(slider.max)).toBe(Number(input.max) * Number(slider.dataset.factor ?? 1));
+    }
+    for (const source of ['width', 'opacity', 'counter-size', 'counter-font-size', 'redaction-strength']) {
+      const input = root.querySelector<HTMLInputElement>(`[data-style="${source}"]`)!;
+      const value = input.parentElement!.querySelector<HTMLInputElement>('input[type="number"]')!;
+      expect(value.min).toBe(input.min);
+      expect(value.max).toBe(input.max);
+    }
+    for (const source of ['borderWidth', 'watermarkSize', 'measurementPpi']) {
+      const input = root.querySelector<HTMLInputElement>(`[name="${source}"]`)!;
+      expect(input.parentElement!.querySelector('select[aria-label$="presets"]')).toBeTruthy();
+    }
+    for (const source of ['watermarkOpacity', 'watermarkScale', 'watermarkAngle', 'quality']) {
+      const input = root.querySelector<HTMLInputElement>(`[name="${source}"]`)!;
+      const value = input.parentElement!.querySelector<HTMLInputElement>('input[type="number"]')!;
+      expect(value.min).toBe(input.min);
+      expect(value.max).toBe(input.max);
+    }
   });
 });

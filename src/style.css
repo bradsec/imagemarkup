@@ -289,6 +289,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .optionsbar input[type="range"] { flex: 1 1 auto; min-width: 0; width: auto; accent-color: var(--accent); }
 .optionsbar input[type="number"] { width: 68px; }
 .optionsbar select { min-width: 116px; }
+.numeric-pair { display: flex; flex: 0 1 124px; align-items: center; gap: 4px; min-width: 0; }
+.numeric-pair > input, .numeric-pair > select { min-width: 0; }
+.optionsbar .numeric-pair > input[type="number"] { flex: 0 1 54px; width: 54px; }
+.optionsbar .numeric-pair > select { flex: 1 1 0; min-width: 0; }
+.optionsbar .numeric-pair > input[type="range"] { flex: 1 1 0; min-width: 0; }
+.optionsbar label:has(.numeric-pair) > output, .dialog-form label:has(.numeric-pair) output { display: none; }
+.dialog-form .numeric-pair { flex: none; width: 100%; }
+.dialog-form .numeric-pair > * { flex: 1 1 0; width: 0; }
+.dialog-form .input-with-unit { display: flex; align-items: center; gap: 8px; }
+.dialog-form .input-with-unit .numeric-pair { flex: 1 1 auto; width: auto; }
 .optionsbar select, .optionsbar input[type="number"] {
   min-height: 28px;
   padding: 3px 6px;
@@ -625,6 +635,11 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 .transform-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 
 @media (pointer: coarse) {
+  .optionsbar input[type="range"], .dialog-form input[type="range"] { height: 40px; border: 0; background: transparent; appearance: none; }
+  .optionsbar input[type="range"]::-webkit-slider-runnable-track, .dialog-form input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--border-strong); }
+  .optionsbar input[type="range"]::-webkit-slider-thumb, .dialog-form input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -9px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); appearance: none; }
+  .optionsbar input[type="range"]::-moz-range-track, .dialog-form input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--border-strong); }
+  .optionsbar input[type="range"]::-moz-range-thumb, .dialog-form input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); }
   .load-error button { min-height: 44px; min-width: 44px; }
   .app-menu summary, .toolrail button, .icon-button, .primary-action { min-height: 44px; }
   .toolrail .tool-colors button { min-height: 24px; }
@@ -640,6 +655,9 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 
 @media (any-pointer: coarse) {
   input, select, textarea { font-size: 16px; }
+  /* At 16px a value and its presets no longer fit beside the label in the 236px panel, so they take their own row. */
+  .optionsbar label:has(.numeric-pair) { flex-wrap: wrap; }
+  .optionsbar label:has(.numeric-pair) > .numeric-pair { flex: 1 1 100%; }
 }
 
 @media (max-width: 760px) {
@@ -712,7 +730,8 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 
 /* Phones in either orientation; keep in step with compactPanels in controller.ts. */
 @media (max-width: 760px), (pointer: coarse) and (max-height: 500px) {
-  .options-heading { position: sticky; top: 0; z-index: 1; min-height: 44px; background: var(--surface); }
+  /* Pin over the panel's 12px top padding so scrolled options never show above the heading. */
+  .options-heading { position: sticky; top: -12px; z-index: 1; min-height: 44px; background: var(--surface); }
   .options-heading [data-action="toggle-options-panel"] { display: inline-flex; width: 44px; min-height: 44px; align-items: center; }
   .optionsbar[data-collapsed="true"] { overflow: hidden; }
   .optionsbar[data-collapsed="true"] > :not(.options-heading) { display: none !important; }

@@ -38,6 +38,8 @@ When the image editing canvas has focus, common shortcuts include `V` for Move, 
 
 Text letter spacing, line spacing, and symbol shape controls update selected objects and become the defaults for new objects. Drag a crop to draw it, then move it or use its eight resize handles. Crop ratios include Free, Original, 1:1, 4:3, 3:2, and 16:9, with an orientation swap. Arrow keys nudge the crop when the canvas has focus; Shift moves it ten pixels. Enter applies one undoable crop step, and Escape cancels it.
 
+Numeric tool settings pair exact values with common-value pickers or sliders. Frame, watermark, export quality, and measurement resolution dialogs offer the same touch-friendly controls where useful; custom values remain editable.
+
 ## Structure
 
 ```

@@ -50,6 +50,26 @@ async function checkOverlay(page: Page, selector: string): Promise<void> {
   }
 }
 
+test('touch numeric controls fit the tool palette and stay at least 40px tall', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone touch controls');
+  await page.goto('/');
+  await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'sample.png', mimeType: 'image/png', buffer: image });
+  for (const tool of ['pen', 'text', 'symbol', 'counter', 'redaction']) {
+    await page.locator(`.toolrail [data-tool="${tool}"]`).click();
+    const panel = page.locator('.optionsbar');
+    if (await panel.getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+    const result = await panel.evaluate((element) => ({
+      overflow: element.scrollWidth > element.clientWidth + 1,
+      short: [...element.querySelectorAll<HTMLElement>('.numeric-pair > input, .numeric-pair > select')]
+        .filter((control) => control.checkVisibility())
+        .filter((control) => control.getBoundingClientRect().height < 40)
+        .map((control) => control.getAttribute('aria-label') ?? control.outerHTML),
+    }));
+    expect(result.overflow, tool).toBe(false);
+    expect(result.short, tool).toEqual([]);
+  }
+});
+
 for (const viewport of [...viewports, { width: 320, height: 256 }]) {
   test(`keeps the tool palette inside the editor at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout');

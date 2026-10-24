@@ -16,6 +16,32 @@ function colorPresets(target: string): string {
   return `<div class="color-presets" data-color-presets="${target}" aria-label="Standard colors">${COMMON_COLORS.map(([name, color]) => `<button type="button" data-color="${color}" aria-label="${name}" title="${name}" style="--swatch:${color}"></button>`).join('')}</div>`;
 }
 
+function numericCompanion(root: HTMLElement, selector: string, label: string, kind: 'presets' | 'slider' | 'value', values: string[] = [], factor = 1): void {
+  const input = root.querySelector<HTMLInputElement>(selector)!;
+  const pair = document.createElement('span');
+  pair.className = 'numeric-pair';
+  input.replaceWith(pair);
+  pair.append(input);
+  let companion: HTMLInputElement | HTMLSelectElement;
+  if (kind === 'presets') {
+    const select = document.createElement('select');
+    select.innerHTML = `<option value="">Custom</option>${values.map((value) => `<option value="${value}">${value}</option>`).join('')}`;
+    select.setAttribute('aria-label', `${label} presets`);
+    companion = select;
+  } else {
+    const field = document.createElement('input');
+    field.type = kind === 'slider' ? 'range' : 'number';
+    field.min = String(Number(input.min) * factor);
+    field.max = String(Number(input.max) * factor);
+    field.step = String(Number(input.step || 1) * factor);
+    field.dataset.factor = String(factor);
+    field.setAttribute('aria-label', `${label} ${kind === 'slider' ? 'slider' : 'value'}`);
+    companion = field;
+  }
+  companion.dataset.numericCompanion = '';
+  pair.append(companion);
+}
+
 function materialSymbolPreview(name: SymbolName): string {
   const symbol = MATERIAL_SYMBOLS[name];
   const transform = symbol.rotation ? ` transform="rotate(${symbol.rotation} 480 -480)"` : '';
@@ -181,8 +207,8 @@ export function renderShell(root: HTMLElement): Shell {
             <label data-options="symbol" data-symbol-param="star">Inner radius <input type="number" data-style="symbol-inner-ratio" aria-label="Inner radius" min="0.2" max="0.9" step="0.01" value="0.43"></label>
             <label data-options="symbol" data-symbol-param="hexagon">Sides <input type="number" data-style="symbol-sides" aria-label="Sides" min="3" max="12" step="1" value="6"></label>
             <label data-options="text">Font <select data-style="font">${FONT_OPTIONS}</select></label>
-            <label data-options="text">Font size <select data-style="font-size-preset" aria-label="Font size preset"><option value="">Custom</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="14">14</option><option value="18">18</option><option value="24">24</option><option value="30">30</option><option value="36">36</option><option value="48">48</option><option value="60">60</option><option value="72">72</option><option value="96">96</option><option value="120">120</option></select></label>
-            <label data-options="text">Custom size <input data-style="font-size" type="number" min="8" max="300" step="1" value="32"></label>
+            <label data-options="text">Font size <select data-style="font-size-preset" aria-label="Font size presets"><option value="">Custom</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="14">14</option><option value="18">18</option><option value="24">24</option><option value="30">30</option><option value="32">32</option><option value="36">36</option><option value="48">48</option><option value="60">60</option><option value="72">72</option><option value="96">96</option><option value="120">120</option></select></label>
+            <label data-options="text">Font size <input data-style="font-size" aria-label="Font size" type="number" min="8" max="300" step="1" value="32"></label>
             <label data-options="text">Letter spacing <input data-style="letter-spacing" aria-label="Letter spacing" type="number" min="-200" max="1000" step="1" value="0"></label>
             <label data-options="text">Line spacing <input data-style="line-height" aria-label="Line spacing" type="number" min="0.5" max="3" step="0.05" value="1.2"></label>
             <div class="text-format-options" data-options="text" aria-label="Text formatting"><select data-style="font-weight" hidden><option value="normal">Regular</option><option value="bold">Bold</option></select><select data-style="font-style" hidden><option value="normal">Regular</option><option value="italic">Italic</option></select><input type="checkbox" data-style="text-underline" hidden><button type="button" data-action="toggle-bold" aria-label="Bold" aria-pressed="false"><strong>B</strong></button><button type="button" data-action="toggle-italic" aria-label="Italic" aria-pressed="false"><em>I</em></button><button type="button" data-action="toggle-underline" aria-label="Underline" aria-pressed="false"><span class="underline-label">U</span></button></div>
@@ -369,6 +395,31 @@ export function renderShell(root: HTMLElement): Shell {
 
   const arrowHeadOptions = '<option value="none">None</option><option value="open">Open</option><option value="triangle">Triangle</option><option value="stealth">Stealth</option><option value="circle">Circle</option>';
   root.querySelector<HTMLElement>('[data-options="line-cap"]')!.insertAdjacentHTML('afterend', `<fieldset class="visual-options arrowhead-options" data-options="arrowheads"><legend>Arrowheads</legend><label>Start <select data-style="arrow-start">${arrowHeadOptions}</select></label><label>End <select data-style="arrow-end">${arrowHeadOptions}</select></label></fieldset>`);
+
+  numericCompanion(root, '[data-style="letter-spacing"]', 'Letter spacing', 'presets', ['-50', '-25', '0', '25', '50', '100', '200']);
+  numericCompanion(root, '[data-style="line-height"]', 'Line spacing', 'presets', ['0.8', '1', '1.2', '1.5', '2']);
+  numericCompanion(root, '[data-style="counter-next"]', 'Next value', 'presets', ['1', '2', '3', '5', '10', '25', '50', '100']);
+  numericCompanion(root, '[data-style="counter-value"]', 'Selected value', 'presets', ['1', '2', '3', '5', '10', '25', '50', '100']);
+  const fontSizeInput = root.querySelector<HTMLInputElement>('[data-style="font-size"]')!;
+  const fontSizeSelect = root.querySelector<HTMLSelectElement>('[data-style="font-size-preset"]')!;
+  const fontSizeLabel = fontSizeSelect.closest('label')!;
+  const fontSizePair = document.createElement('span');
+  fontSizePair.className = 'numeric-pair';
+  fontSizeInput.replaceWith(fontSizePair);
+  fontSizePair.append(fontSizeInput, fontSizeSelect);
+  fontSizeLabel.remove();
+  for (const [key, label] of [['symbol-points', 'Points'], ['symbol-inner-ratio', 'Inner radius'], ['symbol-sides', 'Sides']] as const) {
+    numericCompanion(root, `[data-style="${key}"]`, label, 'slider', [], key === 'symbol-inner-ratio' ? 100 : 1);
+  }
+  for (const [key, label] of [['width', 'Custom width'], ['opacity', 'Opacity'], ['counter-size', 'Shape size'], ['counter-font-size', 'Font size'], ['redaction-strength', 'Strength']] as const) {
+    numericCompanion(root, `[data-style="${key}"]`, label, 'value');
+  }
+  numericCompanion(root, '[name="borderWidth"]', 'Border width', 'presets', ['0', '4', '8', '16', '32']);
+  numericCompanion(root, '[name="watermarkSize"]', 'Watermark size', 'presets', ['16', '24', '32', '48', '72', '96']);
+  numericCompanion(root, '[name="measurementPpi"]', 'Conversion resolution', 'presets', ['72', '96', '150', '300']);
+  for (const [key, label] of [['watermarkOpacity', 'Watermark opacity'], ['watermarkScale', 'Image scale'], ['watermarkAngle', 'Angle'], ['quality', 'JPG quality']] as const) {
+    numericCompanion(root, `[name="${key}"]`, label, 'value');
+  }
 
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-choice-for="symbol"] [data-value]')) {
     const name = button.dataset.value as SymbolName;

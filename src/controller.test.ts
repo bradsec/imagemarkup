@@ -187,6 +187,25 @@ describe('controller regressions', () => {
     expect(mocks.host.checkpoint).toHaveBeenCalledTimes(1);
   });
 
+  it('applies a letter spacing preset once and shows Custom for a typed value', () => {
+    const root = app();
+    const scene = createScene();
+    const text = { id: 'text-1', type: 'text' as const, position: { x: 0, y: 0 }, text: 'Hello', style: scene.toolStyle, fontFamily: 'system-ui', fontSize: 24, fontWeight: 'normal' as const, align: 'left' as const };
+    mocks.store!.set({ image: { source: document.createElement('canvas'), width: 100, height: 100, dataUrl: 'data:image/png;base64,AA==' }, objects: [text], selectedId: text.id });
+    const input = root.querySelector<HTMLInputElement>('[data-style="letter-spacing"]')!;
+    const presets = root.querySelector<HTMLSelectElement>('[aria-label="Letter spacing presets"]')!;
+    mocks.host.checkpoint.mockClear();
+    presets.value = '50';
+    presets.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(mocks.store!.get().objects[0]).toMatchObject({ letterSpacing: 50 });
+    expect(mocks.host.checkpoint).toHaveBeenCalledTimes(1);
+    input.value = '37';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(presets.value).toBe('');
+    expect(mocks.store!.get().objects[0]).toMatchObject({ letterSpacing: 37 });
+  });
+
   it('CODE-10 records one undo step for a text formatting button', () => {
     const root = app();
     const scene = createScene();
