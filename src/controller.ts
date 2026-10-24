@@ -160,16 +160,30 @@ export function startApp(root: HTMLElement): void {
     ['pen', { color: '#ff3b30', width: 4, opacity: 1 }],
   ]);
   const toolStyles = defaultToolStyles();
+  const fillColors = new Map<string, string>();
+  // Swap per-tool styles on every tool change, not only toolrail clicks: Escape and the
+  // single-key shortcuts change the tool inside canvas-host. A change that brings its own
+  // style (project restore, settings reset) keeps it.
+  let previousTool = store.get().activeTool;
+  let previousStyle = store.get().toolStyle;
+  store.subscribe(() => {
+    const scene = store.get();
+    if (scene.activeTool === previousTool) { previousStyle = scene.toolStyle; return; }
+    toolStyles.set(previousTool, { ...previousStyle });
+    previousTool = scene.activeTool;
+    if (scene.toolStyle !== previousStyle) { previousStyle = scene.toolStyle; return; }
+    // A first visit carries over color and width only; fill and a disabled outline belong to the previous tool.
+    const toolStyle = toolStyles.get(scene.activeTool) ?? (scene.activeTool === 'symbol'
+      ? { ...previousStyle, fill: previousStyle.color, stroke: false, opacity: 1 }
+      : { ...previousStyle, fill: undefined, stroke: true, opacity: 1 });
+    previousStyle = toolStyle;
+    store.set({ toolStyle });
+  });
   for (const button of toolButtons) {
     button.addEventListener('click', () => {
-      const scene = store.get();
       const activeTool = button.dataset.tool as Tool;
-      toolStyles.set(scene.activeTool, { ...scene.toolStyle });
-      const toolStyle = toolStyles.get(activeTool) ?? (activeTool === 'symbol'
-        ? { ...scene.toolStyle, fill: scene.toolStyle.color, stroke: false, opacity: 1 }
-        : { ...scene.toolStyle, opacity: 1 });
       canvasHost.cancelGesture();
-      store.set({ activeTool, toolStyle, selectedId: null, selectedIds: [], marquee: null, crop: null });
+      store.set({ activeTool, selectedId: null, selectedIds: [], marquee: null, crop: null });
       // On phones a tool choice shows its options; drawing on the canvas collapses them again.
       // A tool without options must not collapse an open Layers panel.
       if (compactPanels.matches && !optionsbar.hidden) setOptionsCollapsed(false);
@@ -627,8 +641,12 @@ export function startApp(root: HTMLElement): void {
       fillEnabled.checked = solidRedaction || Boolean(style.fill) || (context === 'symbol' && implicitSymbolFill);
       if (solidRedaction || style.fill || (context === 'symbol' && implicitSymbolFill)) {
         fill.value = solidRedaction ? style.fill ?? '#000000' : implicitSymbolFill ? style.color : style.fill!;
-        railFill.value = fill.value;
+        fillColors.set(context, fill.value);
+      } else if (fillColors.has(context)) {
+        // Fill is off: show this tool's last fill color so turning fill back on restores it.
+        fill.value = fillColors.get(context)!;
       }
+      railFill.value = fill.value;
       fill.disabled = !fillEnabled.checked;
       color.disabled = supportsStrokeToggle && !strokeEnabled.checked;
       root.querySelector<HTMLButtonElement>('[data-color-target="color"]')!.disabled = supportsStrokeToggle && !strokeEnabled.checked;

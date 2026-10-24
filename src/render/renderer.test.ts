@@ -126,6 +126,22 @@ describe('renderScene', () => {
     expect(renderSymbol('pin').getImageData(5, 50, 1, 1).data[3]).toBe(0);
   });
 
+  it('draws a symbol outline outside its fill so the fill stays whole', () => {
+    const { surface, canvas } = makeSurface(120, 120);
+    const scene = createScene();
+    scene.image = { source: createCanvas(120, 120) as unknown as CanvasImageSource, width: 120, height: 120, dataUrl: '' };
+    scene.objects.push({ id: 'p', type: 'symbol', paint: 'separate', name: 'circle', rect: { x: 20, y: 20, w: 80, h: 80 },
+      style: { color: '#0000ff', fill: '#00ff00', stroke: true, width: 12, opacity: 1 } });
+    renderArtwork(surface, scene);
+    const ctx = canvas.getContext('2d');
+    // A centred 12px outline would cover 4px inside the left edge; the fill must show there.
+    const left = Array.from({ length: 120 }, (_, x) => ctx.getImageData(x, 60, 1, 1).data).findIndex((pixel) => pixel[1] > 200 || pixel[2] > 200);
+    const inside = ctx.getImageData(left + 16, 60, 1, 1).data;
+    expect([inside[0], inside[1], inside[2]]).toEqual([0, 255, 0]);
+    const outside = ctx.getImageData(left + 2, 60, 1, 1).data;
+    expect([outside[0], outside[1], outside[2]]).toEqual([0, 0, 255]);
+  });
+
   it.each(['star', 'ring', 'hand-stop'] as const)('uses fill and a uniform image-pixel outline for %s', (name) => {
     const render = (w: number, h: number, stroke: boolean, fill: string | null) => {
       const { surface, canvas } = makeSurface(180, 180);

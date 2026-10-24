@@ -459,6 +459,13 @@ function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): vo
   const legacy = object.paint !== 'separate';
   const fill = legacy && material ? object.style.color : object.style.fill;
   const stroke = legacy ? !material && object.style.stroke !== false : object.style.stroke === true;
+  // With a fill, stroke first at double width and fill over its inner half, so the fill stays
+  // whole and the outline shows its full width outside the shape.
+  const paint = (fillShape: () => void, strokeShape: () => void): void => {
+    if (stroke && fill) { ctx.lineWidth = object.style.width * 2; strokeShape(); }
+    if (fill) { ctx.fillStyle = fill; fillShape(); }
+    if (stroke && !fill) strokeShape();
+  };
   if (parametric) {
     const vertices = object.name === 'star' ? starVertices(object.points ?? 5, object.innerRatio ?? 0.43) : polygonVertices(object.sides ?? 6);
     ctx.save();
@@ -468,9 +475,13 @@ function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): vo
     vertices.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
     ctx.closePath();
     // Legacy parametric symbols retain their original scaled outline.
-    if (!legacy) ctx.setTransform(baseTransform);
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) ctx.stroke();
+    if (legacy) {
+      if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+      if (stroke) ctx.stroke();
+    } else {
+      ctx.setTransform(baseTransform);
+      paint(() => ctx.fill(), () => ctx.stroke());
+    }
     ctx.restore();
     return;
   }
@@ -494,8 +505,7 @@ function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): vo
     if (!symbol.viewBox && symbol.rotation) transform.translateSelf(480, -480).rotateSelf(symbol.rotation).translateSelf(-480, 480);
     path.addPath(new Path2D(symbol.path), transform);
     ctx.save();
-    if (fill) { ctx.fillStyle = fill; ctx.fill(path); }
-    if (stroke) ctx.stroke(path);
+    paint(() => ctx.fill(path), () => ctx.stroke(path));
     ctx.restore();
     return;
   }

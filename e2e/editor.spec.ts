@@ -1293,6 +1293,46 @@ test('applies every contextual option family to new objects', async ({ page }) =
   expect(scene.objects[3]).toMatchObject({ type: 'symbol', name: 'target' });
 });
 
+test('keeps each tool style when leaving it with Escape or a shortcut key', async ({ page }) => {
+  await loadImage(page);
+  const strokeOn = page.getByRole('button', { name: 'Toggle stroke' });
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await expect(strokeOn).toHaveAttribute('aria-pressed', 'false');
+  await strokeOn.click();
+  await page.locator('[data-color-presets="fill"] [data-color="#00b050"]').click();
+  await page.locator('#stage').focus();
+  await page.keyboard.press('Escape');
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await expect(strokeOn).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-style="fill"]')).toHaveValue('#00b050');
+
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await page.locator('[data-style="width"]').fill('12');
+  await page.locator('.toolrail [data-tool="pen"]').click();
+  await expect(page.locator('[data-style="width"]')).toHaveValue('4');
+  await page.locator('#stage').focus();
+  await page.keyboard.press('r');
+  await expect(page.locator('[data-style="width"]')).toHaveValue('12');
+  await page.keyboard.press('p');
+  await expect(page.locator('[data-style="width"]')).toHaveValue('4');
+});
+
+test('remembers a tool fill color while fill is turned off', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  // A first visit to Rectangle must not inherit the symbol's fill.
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await expect(page.getByRole('button', { name: 'Toggle fill' })).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.locator('[data-color-presets="fill"] [data-color="#ffff00"]').click();
+  await page.getByRole('button', { name: 'Toggle fill' }).click();
+  await drag(page, [-30, -30], [30, 30]);
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.getByRole('button', { name: 'Toggle fill' }).click();
+  await expect(page.locator('[data-style="fill"]')).toHaveValue('#ffff00');
+});
+
 test('starts unvisited drawing tools at full opacity independently of translucent tools', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="highlighter"]').click();
