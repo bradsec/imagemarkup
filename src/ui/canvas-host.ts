@@ -653,7 +653,9 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       }
       history.record(current.before);
       const selectAfterDraw = object && object.type !== 'pen' && object.type !== 'highlighter' && object.type !== 'text';
-      store.set({ selectedId: selectAfterDraw ? current.id : null, selectedIds: [] });
+      // New text being typed stays selected so formatting controls apply to it, not only to the next text.
+      const editingNewText = object?.type === 'text' && editingTextId === current.id;
+      store.set({ selectedId: selectAfterDraw || editingNewText ? current.id : null, selectedIds: [] });
       return;
     }
     if ((current.kind === 'move' || current.kind === 'resize' || current.kind === 'rotate') && current.changed) history.record(current.before);

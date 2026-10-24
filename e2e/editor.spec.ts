@@ -1187,6 +1187,21 @@ test('Escape commits inline text and returns to the Move tool', async ({ page })
   expect(scene.objects).toContainEqual(expect.objectContaining({ type: 'text', text: 'Finished with Escape' }));
 });
 
+test('applies formatting to new text while it is being typed', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="text"]').click();
+  const center = await canvasCenter(page);
+  await page.mouse.click(center.x - 80, center.y);
+  const editor = page.locator('.text-editor');
+  await editor.fill('New text');
+  if (await page.locator('.optionsbar').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+  await page.getByRole('button', { name: 'Bold', exact: true }).click();
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveCSS('font-weight', '700');
+  await page.keyboard.press('Escape');
+  expect((await saveScene(page)).objects).toEqual([expect.objectContaining({ type: 'text', text: 'New text', fontWeight: 'bold' })]);
+});
+
 test('edits existing text at a caret without selecting the whole object', async ({ page }) => {
   await loadImage(page);
   // Measure the canvas after choosing the tool so the editor has its final dimensions.
@@ -1963,7 +1978,7 @@ test.describe('mobile layout', () => {
     await page.mouse.click(stage.x + 20, stage.y + stage.height - 30);
     await expect(editor).toHaveValue('');
     await page.keyboard.press('Escape');
-    expect((await saveScene(page)).objects).toEqual([expect.objectContaining({ type: 'text', text: 'Palette text' })]);
+    expect((await saveScene(page)).objects).toEqual([expect.objectContaining({ type: 'text', text: 'Palette text', fontWeight: 'bold' })]);
   });
 
   test('opens top menus above the workspace and switches menus with touch', async ({ page }) => {
