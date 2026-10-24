@@ -236,11 +236,12 @@ test('pen options preview and controls fit the mobile palette at 320px', async (
   await expect(page.locator('.optionsbar [data-choice-for="line-cap"] button:last-child')).toBeInViewport();
 });
 
-test('iPhone controls stay readable and reachable for every tool', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout');
-  await loadImage(page);
-  for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 844, height: 390 }, { width: 667, height: 375 }, { width: 320, height: 256 }]) {
+// One test per viewport: walking every tool at all sizes in one test outran the timeout on CI runners.
+for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 844, height: 390 }, { width: 667, height: 375 }, { width: 320, height: 256 }]) {
+  test(`iPhone controls stay readable and reachable for every tool at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout');
     await page.setViewportSize(viewport);
+    await loadImage(page);
     for (const tool of await page.locator('.toolrail [data-tool]').all()) {
       await tool.scrollIntoViewIfNeeded();
       await tool.click();
@@ -273,7 +274,7 @@ test('iPhone controls stay readable and reachable for every tool', async ({ page
         expect(await field.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
       }
     }
-    if (viewport.height === 256) continue;
+    if (viewport.height === 256) return;
     await page.locator('#stage').focus();
     for (let step = 0; step < 6; step++) await page.keyboard.press('-');
     await page.locator('.toolrail [data-tool="text"]').click();
@@ -284,8 +285,8 @@ test('iPhone controls stay readable and reachable for every tool', async ({ page
     await expect(editor).toBeVisible();
     expect(await editor.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
     await page.keyboard.press('Escape');
-  }
-});
+  });
+}
 
 test('mobile stroke and fill controls stay docked in the toolrail', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
