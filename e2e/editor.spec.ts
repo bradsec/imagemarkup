@@ -183,6 +183,21 @@ test('pen options preview and controls fit the mobile bar at 320px', async ({ pa
   expect(tileBounds!.x + tileBounds!.width).toBeLessThanOrEqual(colorBounds!.x);
 });
 
+test('mobile stroke and fill controls stay docked in the toolrail', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await loadImage(page);
+  const rail = await page.locator('.toolrail').boundingBox();
+  const colors = await page.locator('.tool-colors').boundingBox();
+  const stage = await page.locator('#stage').boundingBox();
+  expect(rail && colors && stage).toBeTruthy();
+  expect(colors!.x).toBeGreaterThanOrEqual(rail!.x);
+  expect(colors!.x + colors!.width).toBeLessThanOrEqual(rail!.x + rail!.width);
+  expect(colors!.y + colors!.height).toBeLessThanOrEqual(rail!.y + rail!.height);
+  expect(colors!.x + colors!.width).toBeLessThanOrEqual(stage!.x);
+  await page.locator('[data-tool="image"]').scrollIntoViewIfNeeded();
+  await expect(page.locator('[data-tool="image"]')).toBeInViewport();
+});
+
 test('redaction ghost renders the effect and responds to strength without exporting it', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
   await loadImage(page);
@@ -398,7 +413,11 @@ test('File Open replaces the base image while the place-image tool is active', a
   const openChooser = page.waitForEvent('filechooser');
   await page.getByText('File', { exact: true }).click();
   await page.locator('details[open]').getByRole('button', { name: /Open image/ }).click();
+  const replaceConfirm = page.waitForEvent('dialog');
   await (await openChooser).setFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: imageBuffer });
+  const dialog = await replaceConfirm;
+  expect(dialog.message()).toBe('Open a new image? This replaces the current image and markup.');
+  await dialog.accept();
   await expect(page.locator('#status')).toHaveText('320 x 240');
 
   expect((await saveScene(page)).objects).toEqual([]);
@@ -526,10 +545,6 @@ test('edits selected object dimensions using preferred units and an aspect-ratio
   const width = dimensions.locator('[data-selection-size="width"]');
   const height = dimensions.locator('[data-selection-size="height"]');
   const aspect = dimensions.locator('[data-action="toggle-selection-aspect"]');
-  if (await page.locator('.topbar-actions').isHidden()) {
-    await expect(dimensions).toBeHidden();
-    return;
-  }
   await expect(dimensions).toBeVisible();
   const initialWidth = Number(await width.inputValue());
   const initialHeight = Number(await height.inputValue());
@@ -1049,13 +1064,17 @@ test('Escape commits inline text and returns to the Move tool', async ({ page })
 
 test('edits existing text at a caret without selecting the whole object', async ({ page }) => {
   await loadImage(page);
-  const center = await canvasCenter(page);
+  // Choosing a tool shows the options bar and reflows the stage, so measure the canvas only after it appears.
   await page.locator('.toolrail [data-tool="text"]').click();
+  await expect(page.locator('.optionsbar')).toBeVisible();
+  let center = await canvasCenter(page);
   await page.mouse.click(center.x - 80, center.y);
   await page.locator('.text-editor').fill('Editable text');
   await page.keyboard.press('Escape');
 
   await page.locator('.toolrail [data-tool="text"]').click();
+  await expect(page.locator('.optionsbar')).toBeVisible();
+  center = await canvasCenter(page);
   await page.mouse.click(center.x - 45, center.y - 10);
   const editor = page.locator('.text-editor');
   await expect(page.getByRole('textbox', { name: 'Edit text' })).toBeVisible();
@@ -1317,28 +1336,29 @@ test('pans, zooms, fits, and restores actual size from View controls', async ({ 
   await drag(page, [-30, 0], [45, 30]);
   const panned = (await saveScene(page)).viewport;
 
-  await page.getByText('View', { exact: true }).click();
+  await page.locator('.app-menu > summary', { hasText: 'View' }).click();
   await page.locator('details[open]').getByRole('button', { name: /Zoom in/ }).click();
   await expect(page.locator('#zoom-value')).not.toHaveText('100%');
-  await page.getByText('View', { exact: true }).click();
+  await page.locator('.app-menu > summary', { hasText: 'View' }).click();
   await page.locator('details[open]').getByRole('button', { name: /Fit image/ }).click();
   const fitted = (await saveScene(page)).viewport;
   expect(fitted.tx).not.toBe(panned.tx);
 
-  await page.getByText('View', { exact: true }).click();
+  await page.locator('.app-menu > summary', { hasText: 'View' }).click();
   await page.locator('details[open]').getByRole('button', { name: /Actual size/ }).click();
   expect((await saveScene(page)).viewport.scale).toBe(1);
 });
 
 test('toggles overflow visibility and explains transparent export behavior', async ({ page }) => {
   await loadImage(page);
-  await page.getByText('View', { exact: true }).click();
+  await page.locator('.app-menu > summary', { hasText: 'View' }).click();
   const overflow = page.locator('details[open]').getByRole('button', { name: /Show overflow/ });
   await expect(overflow).toHaveAttribute('aria-pressed', 'false');
   await overflow.click();
   const project = await saveScene(page);
   expect(project.showOverflow).toBe(true);
   project.objects.push({ id: 'outside', type: 'rect', rect: { x: 330, y: 50, w: 30, h: 30 }, style: { color: '#ff0000', fill: '#ff0000', stroke: false, width: 1, opacity: 1 } });
+  page.once('dialog', (dialog) => dialog.accept());
   await page.locator('input[accept^=".imgmarkup"]').setInputFiles({ name: 'overflow.imgmarkup', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
   await expect(page.locator('#status')).toHaveText('Project opened');
 
@@ -1772,7 +1792,7 @@ test.describe('mobile layout', () => {
   });
 
   test('keeps counter options intact and horizontally scrollable', async ({ page }) => {
-    await page.goto('/');
+    await loadImage(page);
     await page.locator('.toolrail [data-tool="counter"]').click();
 
     const options = page.locator('.optionsbar');

@@ -51,14 +51,24 @@ export function artworkBounds(scene: Scene, includeOverflow = scene.showOverflow
   return { x: left, y: top, w: right - left, h: bottom - top };
 }
 
-export function drawArtwork(ctx: CanvasRenderingContext2D, scene: Scene, includeWatermark = true): void {
+export function drawArtwork(ctx: CanvasRenderingContext2D, scene: Scene, includeWatermark = true, imageClip?: Rect): void {
   const img = scene.image;
   if (!img) return;
   const objects = scene.objects.filter((object) => !object.hidden);
+  const drawBaseImage = (target: CanvasRenderingContext2D): void => {
+    if (imageClip) {
+      target.save();
+      target.beginPath();
+      target.rect(imageClip.x, imageClip.y, imageClip.w, imageClip.h);
+      target.clip();
+    }
+    target.drawImage(img.source, 0, 0, img.width, img.height);
+    if (imageClip) target.restore();
+  };
 
   if (!objects.some((object) => object.type === 'redaction')) {
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img.source, 0, 0, img.width, img.height);
+    drawBaseImage(ctx);
     for (const object of objects) drawAnnotation(ctx, object);
     if (includeWatermark && scene.watermark) drawWatermark(ctx, scene.watermark, img.width, img.height);
     return;
@@ -80,7 +90,7 @@ export function drawArtwork(ctx: CanvasRenderingContext2D, scene: Scene, include
       const artworkCtx = artwork.getContext('2d') as CanvasRenderingContext2D;
       artworkCtx.imageSmoothingEnabled = true;
       artworkCtx.translate(-origin.x, -origin.y);
-      artworkCtx.drawImage(img.source, 0, 0, img.width, img.height);
+      drawBaseImage(artworkCtx);
       const snapshot = createCanvas(ctx, surfaceWidth, surfaceHeight);
       const snapshotCtx = snapshot.getContext('2d') as CanvasRenderingContext2D;
       for (const object of objects) {

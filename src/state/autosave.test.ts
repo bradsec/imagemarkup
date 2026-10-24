@@ -32,4 +32,19 @@ describe('autosave', () => {
     await expect(loadAutosave({ getItem: async () => json })).resolves.toMatchObject({ version: 1, activeTool: 'select' });
     await expect(loadAutosave({ getItem: async () => '{' })).rejects.toThrow('Invalid imagemarkup project JSON');
   });
+
+  it('reports serialization failures instead of throwing from the timer', () => {
+    vi.useFakeTimers();
+    const store = new Store(createScene());
+    const onError = vi.fn();
+    const setItem = vi.fn(async () => {});
+    const stop = startAutosave(store, { setItem }, { delay: 1, onError });
+    const viewport = { ...store.get().viewport, circular: null as unknown };
+    viewport.circular = viewport;
+    store.set({ viewport });
+    expect(() => vi.advanceTimersByTime(1)).not.toThrow();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(setItem).not.toHaveBeenCalled();
+    stop();
+  });
 });

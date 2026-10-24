@@ -38,6 +38,15 @@ describe('makeToolAnnotation', () => {
       type: 'redaction', mode: 'blur', strength: 20, rect: { x: 100, y: 0, w: 100, h: 100 },
     });
   });
+
+  it('defaults new solid redactions to black', () => {
+    const scene = createScene();
+    scene.activeTool = 'redaction';
+    scene.redactionMode = 'solid';
+    expect(makeToolAnnotation('solid', scene, { x: 5, y: 5 })).toMatchObject({
+      mode: 'solid', style: { fill: '#000000' },
+    });
+  });
 });
 
 describe('constrainDrawPoint', () => {

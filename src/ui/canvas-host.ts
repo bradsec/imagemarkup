@@ -10,6 +10,7 @@ import { fitViewport, panBy, zoomAt } from '../core/viewport';
 import { translateAnnotation } from '../core/transform';
 import { textLineHeight, textSpacing, textWidth } from '../core/text-layout';
 import { clampCrop, cropFromDrag, moveCrop } from '../core/crop-geometry';
+import { MAX_PROJECT_IMAGE_DATA_LENGTH, projectImageDataLength } from '../core/serialize';
 
 const WHEEL_STEP = 0.0015;
 const WHEEL_STEP_FINE = 0.0005;
@@ -80,6 +81,7 @@ export function makeToolAnnotation(id: string, scene: Scene, point: Point, previ
   if (object.type === 'redaction') {
     const size = scene.image ? Math.min(120, scene.image.width, scene.image.height) : 120;
     object = { ...object, mode: scene.redactionMode, strength: scene.redactionStrength,
+      style: scene.redactionMode === 'solid' ? { ...object.style, fill: object.style.fill ?? '#000000' } : object.style,
       rect: preview && scene.image ? { x: Math.max(0, Math.min(scene.image.width - size, point.x - size / 2)), y: Math.max(0, Math.min(scene.image.height - size, point.y - size / 2)), w: size, h: size } : object.rect };
   }
   return object;
@@ -95,9 +97,11 @@ export interface CanvasHost {
   setImage(img: LoadedImage): void;
   undo(): void;
   redo(): void;
+  canUndo(): boolean;
+  canRedo(): boolean;
   checkpoint(): void;
   checkpointScene(): void;
-  setScene(scene: Scene): void;
+  setScene(scene: Scene, undoable?: boolean): void;
   pickColor(callback: (color: string) => void): void;
   openImage(intent?: 'replace' | 'place'): void;
   duplicateSelected(): void;
@@ -154,10 +158,11 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   let fileIntent: 'replace' | 'place' = 'replace';
   let loadGeneration = 0;
 
-  function replaceScene(next: Scene): void {
+  function replaceScene(next: Scene, undoable = false): void {
     gesture = null;
     const previous = new Set([...sceneSources(store.get()), ...history.sources()]);
-    history.clear();
+    if (undoable) history.record(store.get());
+    else history.clear();
     store.update(() => ({ ...next, crop: null, marquee: null, selectedId: null, selectedIds: [] }));
     const retained = new Set([...sceneSources(store.get()), ...history.sources()]);
     for (const source of previous) if (!retained.has(source)) (source as ImageBitmap).close?.();
@@ -357,9 +362,11 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     textarea.setSelectionRange(caret, caret);
   }
 
-  function centerImage(img: LoadedImage): void {
+  function centerImage(img: LoadedImage): boolean {
+    const scene = store.get();
+    if ((scene.image || scene.objects.length) && !window.confirm('Open a new image? This replaces the current image and markup.')) return false;
     const rect = host.getBoundingClientRect();
-    replaceScene({ ...store.get(),
+    replaceScene({ ...scene,
       image: img,
       viewport: fitViewport(img.width, img.height, rect.width || canvas.width, rect.height || canvas.height),
       objects: [],
@@ -369,20 +376,27 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       crop: null,
       border: null,
       watermark: null,
-    });
+    }, true);
+    return true;
   }
 
   async function load(file: File, intent: 'replace' | 'place'): Promise<void> {
     const generation = ++loadGeneration;
     onStatus?.('Loading image...');
     try {
-      const img = await decodeImageFile(file);
+      const img = await decodeImageFile(file, intent === 'place'
+        ? MAX_PROJECT_IMAGE_DATA_LENGTH - projectImageDataLength(store.get())
+        : MAX_PROJECT_IMAGE_DATA_LENGTH);
       if (generation !== loadGeneration) {
         (img.source as ImageBitmap).close?.();
         return;
       }
       const scene = store.get();
       if (scene.image && intent === 'place') {
+        if (projectImageDataLength(scene) + img.dataUrl.length > MAX_PROJECT_IMAGE_DATA_LENGTH) {
+          (img.source as ImageBitmap).close?.();
+          throw new Error('Image data is too large for a project');
+        }
         const maxWidth = scene.image.width / 2;
         const scale = Math.min(1, maxWidth / img.width);
         const w = img.width * scale;
@@ -399,13 +413,17 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
         clearError();
         return;
       }
-      centerImage(img);
+      if (!centerImage(img)) {
+        (img.source as ImageBitmap).close?.();
+        onStatus?.('Image open cancelled');
+        return;
+      }
       if (emptyState) emptyState.style.display = 'none';
       clearError();
       onStatus?.(`${img.width} x ${img.height}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
-      showError(['Unsupported image type', 'Choose an image under 100 MB', 'Image dimensions are too large', 'Could not decode that image', 'Could not read that image'].includes(message) ? message : 'Could not load that image');
+      showError(['Unsupported image type', 'Choose an image under 100 MB', 'Image dimensions are too large', 'Image data is too large for a project', 'Could not decode that image', 'Could not read that image'].includes(message) ? message : 'Could not load that image');
       onStatus?.('Image load failed');
     }
   }
@@ -484,7 +502,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
         sourceObjects = scene.objects;
         redactionKey = '';
       }
-      const key = `${object.mode}:${object.strength}:${object.rect.x}:${object.rect.y}:${object.rect.w}:${object.rect.h}`;
+      const key = `${object.mode}:${object.strength}:${object.style.fill}:${object.rect.x}:${object.rect.y}:${object.rect.w}:${object.rect.h}`;
       if (key !== redactionKey || !redactionTile) {
         redactionTile = document.createElement('canvas');
         redactionTile.width = Math.ceil(object.rect.w);
@@ -568,25 +586,65 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     return points.length >= 2 ? [points[0], points[1]] : null;
   }
 
+  function defaultPlacement(scene: Scene, point: Point): { start: Point; end: Point } {
+    const w = Math.min(120, scene.image!.width);
+    const h = Math.min(80, scene.image!.height);
+    const x = Math.max(0, Math.min(scene.image!.width - w, point.x - w / 2));
+    const y = Math.max(0, Math.min(scene.image!.height - h, point.y - h / 2));
+    return { start: { x, y }, end: { x: x + w, y: y + h } };
+  }
+
+  function placeFromKeyboard(scene: Scene, point: Point): void {
+    if (scene.activeTool === 'crop') {
+      if (scene.crop) return;
+      const { start, end } = defaultPlacement(scene, point);
+      store.set({ crop: cropFromDrag(start, end, scene.image!.width, scene.image!.height, cropRatio), selectedId: null, selectedIds: [] });
+      onStatus?.('Crop area placed');
+      return;
+    }
+    const id = crypto.randomUUID();
+    let object = makeToolAnnotation(id, scene, point);
+    if (['rect', 'ellipse', 'line', 'arrow', 'redaction'].includes(object.type)) {
+      const { start, end } = defaultPlacement(scene, point);
+      object = resizeAnnotation(object, start, end);
+    }
+    history.record(scene);
+    store.set({ objects: [...scene.objects, object], counterNext: object.type === 'counter' ? scene.counterNext + 1 : scene.counterNext, selectedId: object.type === 'text' ? null : id, selectedIds: [] });
+    if (object.type === 'text') queueMicrotask(() => editText(id, false));
+    onStatus?.(object.type === 'text' ? 'Text editor opened' : `${object.type} placed`);
+  }
+
   function commitGesture(): void {
     const current = gesture;
     gesture = null;
     if (!current) return;
     if (current.kind === 'marquee') { store.set({ marquee: null }); return; }
+    if (current.kind === 'crop') {
+      const scene = store.get();
+      if (scene.image && scene.crop && (scene.crop.w < 1 || scene.crop.h < 1)) {
+        const { start, end } = defaultPlacement(scene, current.start);
+        store.set({ crop: cropFromDrag(start, end, scene.image.width, scene.image.height, cropRatio) });
+      }
+      return;
+    }
     if (current.kind === 'draw') {
       const scene = store.get();
       const object = scene.objects.find((item) => item.id === current.id);
       if (object && object.type !== 'text') {
-        // Drop an accidental click that produced no meaningful shape, so the canvas
-        // never fills with invisible zero-size objects.
         const min = 4 / scene.viewport.scale;
         const bounds = annotationBounds(object);
         const negligible = object.type === 'pen' || object.type === 'highlighter'
           ? object.points.length < 2
           : bounds.w < min && bounds.h < min;
+        // A click that produced no meaningful shape never leaves an invisible zero-size
+        // object: strokes are dropped, other shapes get a default size.
         if (negligible) {
-          store.set({ objects: scene.objects.filter((item) => item.id !== current.id), selectedId: null, selectedIds: [] });
-          return;
+          if (object.type === 'pen' || object.type === 'highlighter') {
+            store.set({ objects: scene.objects.filter((item) => item.id !== current.id), selectedId: null, selectedIds: [] });
+            return;
+          }
+          const { start, end } = defaultPlacement(scene, current.start);
+          store.set({ objects: scene.objects.map((item) => item.id === current.id ? resizeAnnotation(item, start, end) : item) });
         }
       }
       history.record(current.before);
@@ -771,7 +829,25 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       const fake = { id: 'crop', type: 'rect' as const, rect: current.rect, style: scene.toolStyle };
       const bounded = { x: Math.max(0, Math.min(scene.image!.width, image.x)), y: Math.max(0, Math.min(scene.image!.height, image.y)) };
       const resized = resizeFromHandle(fake, current.handle, bounded, { constrainProportions: Boolean(cropRatio || e.shiftKey) });
-      if ('rect' in resized) store.set({ crop: clampCrop(resized.rect, scene.image!.width, scene.image!.height) });
+      if ('rect' in resized) {
+        let next = resized.rect;
+        if (cropRatio) {
+          const horizontal = current.handle.includes('w') || current.handle.includes('e');
+          const vertical = current.handle.includes('n') || current.handle.includes('s');
+          if (horizontal && vertical) {
+            const anchor = {
+              x: current.handle.includes('w') ? current.rect.x + current.rect.w : current.rect.x,
+              y: current.handle.includes('n') ? current.rect.y + current.rect.h : current.rect.y,
+            };
+            next = cropFromDrag(anchor, bounded, scene.image!.width, scene.image!.height, cropRatio);
+          } else if (horizontal) {
+            next = { ...next, h: next.w / cropRatio, y: current.rect.y + (current.rect.h - next.w / cropRatio) / 2 };
+          } else if (vertical) {
+            next = { ...next, w: next.h * cropRatio, x: current.rect.x + (current.rect.w - next.h * cropRatio) / 2 };
+          }
+        }
+        store.set({ crop: clampCrop(next, scene.image!.width, scene.image!.height) });
+      }
     } else if (current.kind === 'draw') {
       store.set({ objects: scene.objects.map((object) => {
         if (object.id !== current.id) return object;
@@ -818,6 +894,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     requestPreview();
   };
   const cancelGesture = (e: PointerEvent) => {
+    if (e.target instanceof Element && e.target.closest('.text-editor')) return;
     pointers.delete(e.pointerId);
     const current = gesture;
     if (current && 'before' in current) store.update(() => current.before);
@@ -838,14 +915,25 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     const target = e.target instanceof Element ? e.target : null;
     const editingTarget = target?.closest('input, select, textarea, [contenteditable]');
     const typing = editingTarget && isTypingTarget(editingTarget.tagName, editingTarget instanceof HTMLInputElement ? editingTarget.type : '', editingTarget.hasAttribute('contenteditable'));
+    const scene = store.get();
+    const canvasFocused = document.activeElement === host;
+    if ((e.key === 'Enter' || e.key === ' ' || e.code === 'Space') && canvasFocused && scene.image && !e.metaKey && !e.ctrlKey && !e.altKey
+      && ['rect', 'ellipse', 'line', 'arrow', 'redaction', 'counter', 'symbol', 'text', 'crop'].includes(scene.activeTool)
+      && !(scene.activeTool === 'crop' && scene.crop)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      placeFromKeyboard(scene, screenToImage({ x: canvas.width / 2, y: canvas.height / 2 }, scene.viewport));
+      return;
+    }
     if (e.code === 'Space' && !typing && (spaceDown || pointerOverStage || document.activeElement === host || document.activeElement === document.body)) {
       e.preventDefault();
       if (!e.repeat) { spaceDown = true; host.dataset.spacePan = 'held'; requestPreview(); }
       return;
     }
     if (editingTarget) return;
-    const scene = store.get();
-    const canvasFocused = document.activeElement === host;
+    // Escape belongs to an open dialog or menu; a closed menu that merely holds focus must not swallow it.
+    const openOverlay = 'dialog[open], details.app-menu[open], .context-menu:not([hidden])';
+    if (e.key === 'Escape' && (e.defaultPrevented || target?.closest(openOverlay) || document.activeElement?.closest(openOverlay))) return;
     if (e.key === 'Escape') {
       clearGesture();
       colorCallback = null;
@@ -861,18 +949,18 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     }
     const tools: Record<string, Scene['activeTool']> = { v: 'select', r: 'rect', o: 'ellipse', a: 'arrow', l: 'line', p: 'pen', h: 'highlighter', t: 'text', c: 'counter', b: 'redaction' };
     const tool = tools[e.key.toLowerCase()];
-    if (tool && canvasFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (tool && scene.image && canvasFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       clearGesture();
       store.set({ activeTool: tool, crop: null, marquee: null, selectedId: null, selectedIds: [] });
       return;
     }
-    if ((e.key === '+' || e.key === '=') && canvasFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if ((e.key === '+' || e.key === '=') && scene.image && canvasFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       store.set({ viewport: zoomAt(scene.viewport, { x: canvas.width / 2, y: canvas.height / 2 }, 1.2) });
       return;
     }
-    if (e.key === '-' && canvasFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (e.key === '-' && scene.image && canvasFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       store.set({ viewport: zoomAt(scene.viewport, { x: canvas.width / 2, y: canvas.height / 2 }, 1 / 1.2) });
       return;
@@ -949,20 +1037,22 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
 
   return {
     setImage(img) {
-      centerImage(img);
+      if (!centerImage(img)) return;
       if (emptyState) emptyState.style.display = 'none';
       clearError();
     },
     undo,
     redo,
+    canUndo: () => history.canUndo(),
+    canRedo: () => history.canRedo(),
     checkpoint() {
       if (selectionIds(store.get()).length) history.record(store.get());
     },
     checkpointScene() {
       history.record(store.get());
     },
-    setScene(scene) {
-      replaceScene(scene);
+    setScene(scene, undoable = false) {
+      replaceScene(scene, undoable);
       if (emptyState) emptyState.style.display = scene.image ? 'none' : '';
     },
     pickColor(callback) {

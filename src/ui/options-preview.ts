@@ -59,7 +59,7 @@ export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement
     ctx.fillRect(0, 0, SIZE, SIZE);
     const { object, scale } = preview;
     if (object.type === 'redaction') {
-      const key = `${object.mode}:${object.strength}:${pixels}`;
+      const key = `${object.mode}:${object.strength}:${object.style.fill}:${pixels}`;
       if (key !== redactionKey || !redactionSample) {
         redactionSample = document.createElement('canvas');
         redactionSample.width = redactionSample.height = pixels;

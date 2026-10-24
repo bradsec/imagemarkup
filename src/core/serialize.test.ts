@@ -122,7 +122,17 @@ describe('scene serialization', () => {
       style: { color: '#ff0000', width: 1, opacity: 1 },
     });
 
-    expect(() => parseScene(serializeScene(scene))).toThrow('Invalid or unsupported');
+    expect(() => serializeScene(scene)).toThrow('Project image data is too large');
+  });
+
+  it('applies the image budget across multiple layers', () => {
+    const scene = createScene();
+    const dataUrl = `data:image/png;base64,${'A'.repeat(Math.floor(MAX_PROJECT_IMAGE_DATA_LENGTH / 2))}`;
+    scene.objects.push(
+      { id: 'first', type: 'image', rect: { x: 0, y: 0, w: 1, h: 1 }, dataUrl, style: scene.toolStyle },
+      { id: 'second', type: 'image', rect: { x: 0, y: 0, w: 1, h: 1 }, dataUrl, style: scene.toolStyle },
+    );
+    expect(() => serializeScene(scene)).toThrow('Project image data is too large');
   });
 
   it('rejects ambiguous IDs and unsafe annotation geometry', () => {
@@ -141,6 +151,15 @@ describe('scene serialization', () => {
   it('rejects redaction strengths that exceed the renderer limit', () => {
     const scene = createScene();
     scene.objects = [{ id: 'redaction', type: 'redaction', rect: { x: 0, y: 0, w: 10, h: 10 }, mode: 'pixelate', strength: 101, style: { ...scene.toolStyle } }];
+    expect(() => parseScene(serializeScene(scene))).toThrow('Invalid or unsupported');
+  });
+
+  it('round-trips solid redactions and rejects invalid fill colors', () => {
+    const scene = createScene();
+    scene.redactionMode = 'solid';
+    scene.objects = [{ id: 'solid', type: 'redaction', rect: { x: 0, y: 0, w: 10, h: 10 }, mode: 'solid', strength: 10, style: { color: '#ff0000', fill: '#123456', width: 1, opacity: .2 } }];
+    expect(parseScene(serializeScene(scene))).toMatchObject({ redactionMode: 'solid', objects: [{ mode: 'solid', style: { fill: '#123456' } }] });
+    scene.objects[0].style.fill = 'transparent';
     expect(() => parseScene(serializeScene(scene))).toThrow('Invalid or unsupported');
   });
 });

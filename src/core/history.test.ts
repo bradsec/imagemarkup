@@ -11,6 +11,18 @@ const rect = (id: string): Annotation => ({
 });
 
 describe('AnnotationHistory', () => {
+  it('reports availability of undo and redo', () => {
+    const history = new AnnotationHistory();
+    const scene = createScene();
+    expect(history.canUndo()).toBe(false);
+    expect(history.canRedo()).toBe(false);
+    history.record(scene);
+    expect(history.canUndo()).toBe(true);
+    expect(history.canRedo()).toBe(false);
+    history.undo(scene);
+    expect(history.canUndo()).toBe(false);
+    expect(history.canRedo()).toBe(true);
+  });
   it('undoes and redoes snapshots, then clears redo on a new change', () => {
     const history = new AnnotationHistory();
     const scene = createScene();

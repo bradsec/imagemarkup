@@ -40,4 +40,17 @@ describe('image input normalization', () => {
     expect(close).toHaveBeenCalledOnce();
     vi.unstubAllGlobals();
   });
+
+  it('rejects an image layer that exceeds the remaining project image budget', async () => {
+    const close = vi.fn();
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 1, height: 1, close }));
+    vi.stubGlobal('FileReader', class {
+      result = 'data:image/png;base64,AQID';
+      onload: (() => void) | null = null;
+      readAsDataURL() { this.onload?.(); }
+    });
+    await expect(decodeImageFile(fakeFile('a.png', 'image/png'), 10)).rejects.toThrow('Image data is too large for a project');
+    expect(close).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
 });

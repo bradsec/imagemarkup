@@ -6,6 +6,12 @@ export const PROJECT_VERSION = 1;
 export const MAX_PROJECT_FILE_BYTES = 110_000_000;
 export const MAX_PROJECT_IMAGE_DATA_LENGTH = 100_000_000;
 
+export function projectImageDataLength(scene: Pick<Scene, 'image' | 'objects' | 'watermark'>): number {
+  return (scene.image?.dataUrl.length ?? 0)
+    + scene.objects.reduce((total, object) => total + (object.type === 'image' ? object.dataUrl.length : 0), 0)
+    + (scene.watermark?.kind === 'image' ? scene.watermark.dataUrl.length : 0);
+}
+
 export interface SerializedScene {
   version: typeof PROJECT_VERSION;
   image: { dataUrl: string; width: number; height: number } | null;
@@ -121,7 +127,7 @@ function annotation(value: unknown): value is Annotation {
     && (value.fontSize === undefined || (finite(value.fontSize) && value.fontSize > 0 && value.fontSize <= 1_000))
     && (value.textColor === undefined || (typeof value.textColor === 'string' && /^#[0-9a-f]{6}$/i.test(value.textColor)))
     && (value.format === undefined || value.format === 'numeric' || value.format === 'alpha' || value.format === 'roman');
-  if (value.type === 'redaction') return rect(value.rect) && (value.mode === 'pixelate' || value.mode === 'blur') && finite(value.strength) && value.strength > 0 && value.strength <= 100;
+  if (value.type === 'redaction') return rect(value.rect) && (value.mode === 'pixelate' || value.mode === 'blur' || value.mode === 'solid') && finite(value.strength) && value.strength > 0 && value.strength <= 100;
   return false;
 }
 
@@ -129,7 +135,7 @@ function valid(value: unknown): value is SerializedScene {
   if (!record(value) || value.version !== PROJECT_VERSION) return false;
   const image = value.image;
   const validImage = image === null || (record(image)
-    && typeof image.dataUrl === 'string' && image.dataUrl.startsWith('data:image/') && image.dataUrl.length <= 100_000_000
+    && typeof image.dataUrl === 'string' && image.dataUrl.startsWith('data:image/') && image.dataUrl.length <= MAX_PROJECT_IMAGE_DATA_LENGTH
     && finite(image.width) && image.width > 0 && image.width <= 32_768
     && finite(image.height) && image.height > 0 && image.height <= 32_768
     && image.width * image.height <= 268_000_000);
@@ -176,7 +182,7 @@ function valid(value: unknown): value is SerializedScene {
     && (value.fontStyle === undefined || value.fontStyle === 'normal' || value.fontStyle === 'italic')
     && (value.textUnderline === undefined || typeof value.textUnderline === 'boolean')
     && ['left', 'right', 'center', 'start', 'end', 'justify'].includes(String(value.textAlign))
-    && (value.redactionMode === 'pixelate' || value.redactionMode === 'blur')
+    && (value.redactionMode === 'pixelate' || value.redactionMode === 'blur' || value.redactionMode === 'solid')
     && finite(value.redactionStrength) && value.redactionStrength > 0 && value.redactionStrength <= 100
     && (value.counterShape === undefined || value.counterShape === 'circle' || value.counterShape === 'square' || value.counterShape === 'diamond')
     && (value.counterFilled === undefined || typeof value.counterFilled === 'boolean')
@@ -228,7 +234,10 @@ export function serializeScene(scene: Scene): string {
   };
   dto.objects = dto.objects.map((object) => object.type === 'image' ? { ...object, source: undefined } : object);
   if (dto.watermark?.kind === 'image') dto.watermark = { ...dto.watermark, source: undefined };
-  return JSON.stringify(dto);
+  if (projectImageDataLength(scene) > MAX_PROJECT_IMAGE_DATA_LENGTH) throw new Error('Project image data is too large');
+  const json = JSON.stringify(dto);
+  if (new Blob([json]).size > MAX_PROJECT_FILE_BYTES) throw new Error('Project is too large');
+  return json;
 }
 
 export function parseScene(json: string): SerializedScene & Pick<Scene, 'arrowStartHead' | 'arrowEndHead' | 'letterSpacing' | 'lineHeight' | 'symbolPoints' | 'symbolInnerRatio' | 'symbolSides'> {

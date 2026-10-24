@@ -98,7 +98,7 @@ export interface CounterAnnotation extends AnnotationBase {
 export interface RedactionAnnotation extends AnnotationBase {
   type: 'redaction';
   rect: Rect;
-  mode: 'pixelate' | 'blur';
+  mode: 'pixelate' | 'blur' | 'solid';
   strength: number;
 }
 
@@ -152,7 +152,7 @@ export interface Scene {
   fontStyle: 'normal' | 'italic';
   textUnderline: boolean;
   textAlign: TextAlign;
-  redactionMode: 'pixelate' | 'blur';
+  redactionMode: RedactionAnnotation['mode'];
   redactionStrength: number;
   counterShape: CounterShape;
   counterFilled: boolean;

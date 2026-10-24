@@ -44,11 +44,14 @@ test('keeps primary regions and touch targets usable at 320 by 256 CSS pixels', 
   expect(tools?.y).toBeGreaterThanOrEqual(header?.height ?? 0);
   expect((tools?.y ?? 0) + (tools?.height ?? 0)).toBeLessThanOrEqual(256);
 
-  const targetSize = await page.evaluate(() => matchMedia('(pointer: coarse)').matches) ? 44 : 24;
+  // Compact Photoshop-style swatches: each control meets the WCAG 2.5.8 minimum, the docked group a 44px touch area.
+  const group = await page.locator('.tool-colors').boundingBox();
+  expect(group?.width).toBeGreaterThanOrEqual(44);
+  expect(group?.height).toBeGreaterThanOrEqual(44);
   for (const control of await page.locator('.tool-colors input, .tool-colors button').all()) {
     const box = await control.boundingBox();
-    expect(box?.width).toBeGreaterThanOrEqual(targetSize);
-    expect(box?.height).toBeGreaterThanOrEqual(targetSize);
+    expect(box?.width).toBeGreaterThanOrEqual(24);
+    expect(box?.height).toBeGreaterThanOrEqual(24);
   }
 });
 
@@ -87,10 +90,61 @@ test('focuses a dialog heading and returns to the invoking menu on close', async
   await help.focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Tools and drawing' })).toBeFocused();
+  await page.getByRole('button', { name: 'About imagemarkup' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#about-title')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(help).toBeFocused();
+});
+
+test('opens each guide without changing the canvas and returns focus on Escape or Close', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('[data-tool="rect"]').click();
+  const canvas = page.locator('.stage-host canvas:not(.tool-preview)');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('Canvas is not visible');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 + 20);
+  await page.mouse.up();
+  const help = page.locator('details.app-menu').filter({ has: page.locator('summary', { hasText: 'Help' }) }).locator('summary');
+  const before = await page.locator('#stage').getAttribute('data-active-tool');
+  const beforePixels = await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
+  for (const [index, name] of ['tools', 'editing', 'saving', 'shortcuts'].entries()) {
+    await help.click();
+    await page.locator(`[data-action="${name}-guide"]`).click();
+    const dialog = page.locator(`#${name}-guide-dialog`);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('h2')).toBeFocused();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(results.violations).toEqual([]);
+    if (index % 2 === 0) await page.keyboard.press('Escape');
+    else await dialog.getByRole('button', { name: 'Close' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(help).toBeFocused();
+    await expect(page.locator('#stage')).toHaveAttribute('data-active-tool', before!);
+    expect(await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL())).toBe(beforePixels);
+  }
+});
+
+test('keeps guides inside a 320 by 256 viewport with internal scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 256 });
+  await page.goto('/');
+  for (const name of ['tools', 'editing', 'saving', 'shortcuts']) {
+    await page.locator('details.app-menu').filter({ has: page.locator('summary', { hasText: 'Help' }) }).locator('summary').click();
+    await page.locator(`[data-action="${name}-guide"]`).click();
+    const dialog = page.locator(`#${name}-guide-dialog`);
+    const box = await dialog.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(256);
+    expect(await dialog.evaluate((element) => element.scrollHeight)).toBeGreaterThan(await dialog.evaluate((element) => element.clientHeight));
+    await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 320);
+    await dialog.getByRole('button', { name: 'Close' }).click();
+  }
 });
 
 test('shows focus and selected controls in forced colors', async ({ page }) => {
@@ -105,6 +159,17 @@ test('shows focus and selected controls in forced colors', async ({ page }) => {
     await expect(control).toHaveCSS('outline-style', 'solid');
     await expect(control).toHaveCSS('outline-width', '2px');
   }
+});
+
+test('shows a focus ring on the inline text editor', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('[data-tool="text"]').click();
+  const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
+  if (!canvas) throw new Error('Canvas is not visible');
+  await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+  await expect(page.locator('.text-editor')).toBeFocused();
+  await expect(page.locator('.text-editor')).toHaveCSS('outline-style', 'solid');
+  await expect(page.locator('.text-editor')).toHaveCSS('outline-width', '2px');
 });
 
 test('moves a selected annotation with focused arrow keys', async ({ page }) => {

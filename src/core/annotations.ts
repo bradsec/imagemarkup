@@ -152,9 +152,17 @@ export function annotationBounds(object: Annotation): Rect {
   if ('rect' in object) return object.rect;
   if ('start' in object) return rectFromPoints(object.start, object.end);
   if (isPathAnnotation(object)) {
-    const xs = object.points.map((point) => point.x);
-    const ys = object.points.map((point) => point.y);
-    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+    for (const point of object.points) {
+      left = Math.min(left, point.x);
+      top = Math.min(top, point.y);
+      right = Math.max(right, point.x);
+      bottom = Math.max(bottom, point.y);
+    }
+    return { x: left, y: top, w: right - left, h: bottom - top };
   }
   if (object.type === 'counter') return { x: object.position.x - object.radius, y: object.position.y - object.radius, w: object.radius * 2, h: object.radius * 2 };
   return textBounds(object);

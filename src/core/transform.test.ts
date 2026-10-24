@@ -51,4 +51,10 @@ describe('frame transforms', () => {
     expect(transformAnnotation(image, 'flip-horizontal', 100, 80)).toMatchObject({ rotation: -Math.PI / 6, flipX: true });
     expect(transformAnnotation({ ...image, flipY: true }, 'flip-vertical', 100, 80)).toMatchObject({ rotation: -Math.PI / 6, flipY: false });
   });
+
+  it('reverses rotation when a shape is flipped with the frame', () => {
+    const rotated = { ...rect, rotation: Math.PI / 6 };
+    expect(transformAnnotation(rotated, 'flip-horizontal', 100, 80)).toMatchObject({ rotation: -Math.PI / 6 });
+    expect(transformAnnotation(rotated, 'flip-vertical', 100, 80)).toMatchObject({ rotation: -Math.PI / 6 });
+  });
 });

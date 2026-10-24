@@ -39,6 +39,21 @@ describe('renderShell', () => {
     expect(root.querySelector('.about-repo-link svg')).toBeNull();
   });
 
+  it('lists four labelled guides before About, each with a Close button', () => {
+    const root = document.createElement('div');
+    renderShell(root);
+    const help = [...root.querySelectorAll('details.app-menu')].find((menu) => menu.querySelector('summary')?.textContent === 'Help')!;
+    expect([...help.querySelectorAll<HTMLButtonElement>('.menu-popover button')].map((button) => button.dataset.action))
+      .toEqual(['tools-guide', 'editing-guide', 'saving-guide', 'shortcuts-guide', 'about']);
+    for (const name of ['tools', 'editing', 'saving', 'shortcuts']) {
+      const dialog = root.querySelector<HTMLDialogElement>(`#${name}-guide-dialog`)!;
+      expect(dialog.getAttribute('aria-labelledby')).toBe(`${name}-guide-title`);
+      expect(dialog.querySelector('h2')?.id).toBe(`${name}-guide-title`);
+      expect(dialog.querySelectorAll('.help-settings dt').length).toBeGreaterThan(0);
+      expect(dialog.querySelector('.dialog-actions button[value="close"]')?.textContent).toBe('Close');
+    }
+  });
+
   it('uses native disclosure and list semantics for composite controls', () => {
     const root = document.createElement('div');
     renderShell(root);
@@ -98,6 +113,22 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-action="toggle-overflow"]')).toBeTruthy();
     expect(root.querySelector('#about-dialog a[href="https://github.com/bradsec/imagemarkup"]')).toBeTruthy();
     expect(root.querySelector('[data-value="jpg-quality"]')?.textContent).toBe('90%');
+  });
+
+  it('offers one-step layer arrangement and persistent autosave status', () => {
+    const root = document.createElement('div');
+    renderShell(root);
+    expect(root.querySelector('[data-action="bring-forward"]')).toBeTruthy();
+    expect(root.querySelector('[data-action="send-backward"]')).toBeTruthy();
+    expect(root.querySelector('[data-layer-context-action="bring-forward"]')).toBeTruthy();
+    expect(root.querySelector('[data-layer-context-action="send-backward"]')).toBeTruthy();
+    expect(root.querySelector('[data-autosave-status]')).toBeTruthy();
+  });
+
+  it('offers opaque solid redaction', () => {
+    const root = document.createElement('div');
+    renderShell(root);
+    expect(root.querySelector('[data-style="redaction-mode"] option[value="solid"]')?.textContent).toBe('Solid');
   });
 
   it('renders live style controls', () => {

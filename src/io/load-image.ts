@@ -1,4 +1,5 @@
 import type { LoadedImage } from '../core/types';
+import { MAX_PROJECT_IMAGE_DATA_LENGTH } from '../core/serialize';
 
 export const MAX_IMAGE_DIMENSION = 32_768;
 export const MAX_IMAGE_PIXELS = 268_000_000;
@@ -56,7 +57,7 @@ function readAsDataUrl(file: File): Promise<string> {
 }
 
 /** Decode an image file to a drawable bitmap plus a persistable data URL. */
-export async function decodeImageFile(file: File): Promise<LoadedImage> {
+export async function decodeImageFile(file: File, maxDataLength = MAX_PROJECT_IMAGE_DATA_LENGTH): Promise<LoadedImage> {
   if (!isImageFile(file)) throw new Error('Unsupported image type');
   if (file.size > 100 * 1024 * 1024) throw new Error('Choose an image under 100 MB');
   let bitmap: ImageBitmap;
@@ -72,11 +73,15 @@ export async function decodeImageFile(file: File): Promise<LoadedImage> {
     bitmap.close();
     throw new Error('Could not read that image');
   }
+  if (dataUrl.length > Math.min(maxDataLength, MAX_PROJECT_IMAGE_DATA_LENGTH)) {
+    bitmap.close();
+    throw new Error('Image data is too large for a project');
+  }
   return { source: bitmap, width: bitmap.width, height: bitmap.height, dataUrl };
 }
 
 export async function decodeImageDataUrl(dataUrl: string): Promise<LoadedImage> {
-  if (!dataUrl.startsWith('data:image/') || dataUrl.length > 100_000_000) throw new Error('Invalid image data');
+  if (!dataUrl.startsWith('data:image/') || dataUrl.length > MAX_PROJECT_IMAGE_DATA_LENGTH) throw new Error('Invalid image data');
   const blob = await fetch(dataUrl).then((response) => response.blob());
   const bitmap = checkedBitmap(await createImageBitmap(blob));
   return { source: bitmap, width: bitmap.width, height: bitmap.height, dataUrl };

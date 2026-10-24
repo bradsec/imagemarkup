@@ -414,6 +414,30 @@ describe('renderScene', () => {
     expect([...right]).toEqual([...left]);
   });
 
+  it('covers source pixels with an opaque solid redaction color', () => {
+    const src = createCanvas(4, 4);
+    src.getContext('2d').fillStyle = '#ff0000';
+    src.getContext('2d').fillRect(0, 0, 4, 4);
+    const { surface, canvas } = makeSurface(4, 4);
+    const scene = createScene();
+    scene.image = { source: src as unknown as CanvasImageSource, width: 4, height: 4, dataUrl: '' };
+    scene.objects.push({ id: 'solid', type: 'redaction', rect: { x: 1, y: 1, w: 2, h: 2 }, mode: 'solid', strength: 10, style: { color: '#ff0000', fill: '#123456', width: 1, opacity: .2 } });
+    renderArtwork(surface, scene);
+    expect([...canvas.getContext('2d').getImageData(1, 1, 1, 1).data]).toEqual([18, 52, 86, 255]);
+  });
+
+  it('uses opaque black when a solid redaction has no fill color', () => {
+    const src = createCanvas(2, 2);
+    src.getContext('2d').fillStyle = '#ffffff';
+    src.getContext('2d').fillRect(0, 0, 2, 2);
+    const { surface, canvas } = makeSurface(2, 2);
+    const scene = createScene();
+    scene.image = { source: src as unknown as CanvasImageSource, width: 2, height: 2, dataUrl: '' };
+    scene.objects.push({ id: 'solid', type: 'redaction', rect: { x: 0, y: 0, w: 2, h: 2 }, mode: 'solid', strength: 10, style: { color: '#ff0000', width: 1, opacity: .2 } });
+    renderArtwork(surface, scene);
+    expect([...canvas.getContext('2d').getImageData(0, 0, 1, 1).data]).toEqual([0, 0, 0, 255]);
+  });
+
   it('redacts placed images below it while leaving placed images above it visible', () => {
     const src = createCanvas(20, 20);
     const { surface, canvas } = makeSurface(20, 20);

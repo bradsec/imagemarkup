@@ -1,8 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createScene } from '../core/types';
-import { downloadBlob, exportBounds, exportSize } from './export';
+import { downloadBlob, exportBounds, exportScene, exportSize } from './export';
 
 describe('export sizing', () => {
+  it('clips the base image to the crop when overflow remains visible', async () => {
+    const scene = createScene();
+    scene.image = { source: {} as CanvasImageSource, dataUrl: '', width: 100, height: 100 };
+    scene.crop = { x: 20, y: 30, w: 40, h: 50 };
+    scene.showOverflow = true;
+    const calls: string[] = [];
+    const ctx = {
+      setTransform: () => {}, resetTransform: () => {},
+      save: () => { calls.push('save'); }, restore: () => { calls.push('restore'); },
+      beginPath: () => { calls.push('beginPath'); },
+      rect: (x: number, y: number, w: number, h: number) => { calls.push(`rect:${x},${y},${w},${h}`); },
+      clip: () => { calls.push('clip'); },
+      drawImage: () => { calls.push('drawImage'); },
+    };
+    vi.stubGlobal('document', {
+      fonts: { ready: Promise.resolve() },
+      createElement: () => ({ getContext: () => ctx, toBlob: (callback: (blob: Blob) => void) => callback(new Blob()) }),
+    });
+
+    await exportScene(scene, 'png');
+
+    expect(calls).toContain('rect:20,30,40,50');
+    expect(calls.indexOf('clip')).toBeLessThan(calls.indexOf('drawImage'));
+    vi.unstubAllGlobals();
+  });
   it('keeps the download URL alive through the click', () => {
     vi.useFakeTimers();
     const revoke = vi.fn();

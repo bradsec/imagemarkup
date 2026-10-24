@@ -12,7 +12,11 @@ export function drawRedaction(ctx: CanvasRenderingContext2D, object: RedactionAn
   ctx.clip();
   const strength = normalizeRedactionStrength(object.strength);
 
-  if (object.mode === 'blur') {
+  if (object.mode === 'solid') {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = object.style.fill ?? '#000000';
+    ctx.fillRect(x, y, w, h);
+  } else if (object.mode === 'blur') {
     ctx.filter = `blur(${strength}px)`;
     ctx.drawImage(source, sourceOrigin.x, sourceOrigin.y);
   } else {

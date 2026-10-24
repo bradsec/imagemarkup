@@ -4,6 +4,10 @@ import { annotationBounds, annotationHandles, annotationVisualBounds, appendPath
 const style = { color: '#f00', width: 4, opacity: 1 };
 
 describe('annotations', () => {
+  it('finds the bounds of a path longer than the argument stack limit', () => {
+    const points = Array.from({ length: 150_000 }, (_, index) => ({ x: index, y: -index }));
+    expect(annotationBounds({ id: 'long', type: 'pen', points, style })).toEqual({ x: 0, y: -149_999, w: 149_999, h: 149_999 });
+  });
   it('normalizes a rectangle drawn in any direction and moves it', () => {
     const object = resizeAnnotation(createAnnotation('1', 'rect', { x: 20, y: 30 }, style), { x: 20, y: 30 }, { x: 5, y: 10 });
     expect(object).toMatchObject({ rect: { x: 5, y: 10, w: 15, h: 20 } });

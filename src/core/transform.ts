@@ -34,10 +34,11 @@ export function transformAnnotation(object: Annotation, transform: FrameTransfor
       ? { ...base, rotation: -(object.rotation ?? 0), flipX: !object.flipX }
       : { ...base, rotation: -(object.rotation ?? 0), flipY: !object.flipY };
   }
-  if ('rect' in object) return { ...object, rect: transformRect(object.rect, transform, width, height) };
-  if ('start' in object) return { ...object, start: transformPoint(object.start, transform, width, height), end: transformPoint(object.end, transform, width, height) };
-  if (isPathAnnotation(object)) return { ...object, points: object.points.map((point) => transformPoint(point, transform, width, height)) };
-  return { ...object, position: transformPoint(object.position, transform, width, height) };
+  const rotation = transform.startsWith('flip-') && object.rotation ? { rotation: -object.rotation } : {};
+  if ('rect' in object) return { ...object, ...rotation, rect: transformRect(object.rect, transform, width, height) };
+  if ('start' in object) return { ...object, ...rotation, start: transformPoint(object.start, transform, width, height), end: transformPoint(object.end, transform, width, height) };
+  if (isPathAnnotation(object)) return { ...object, ...rotation, points: object.points.map((point) => transformPoint(point, transform, width, height)) };
+  return { ...object, ...rotation, position: transformPoint(object.position, transform, width, height) };
 }
 
 export function scaleAnnotation(object: Annotation, sx: number, sy: number): Annotation {

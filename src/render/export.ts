@@ -55,7 +55,7 @@ export async function exportScene(scene: Scene, format: ExportFormat, scale = 1,
     ctx.fillStyle = scene.border.color;
     ctx.fillRect(crop.x - border, crop.y - border, crop.w + border * 2, crop.h + border * 2);
   }
-  drawArtwork(ctx, scene, false);
+  drawArtwork(ctx, scene, false, scene.crop ?? undefined);
   ctx.setTransform(scale, 0, 0, scale, (crop.x - bounds.x) * scale, (crop.y - bounds.y) * scale);
   if (scene.watermark) drawWatermark(ctx, scene.watermark, crop.w, crop.h);
   ctx.resetTransform();

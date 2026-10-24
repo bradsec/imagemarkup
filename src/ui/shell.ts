@@ -109,6 +109,11 @@ export function renderShell(root: HTMLElement): Shell {
             <button type="button" data-action="toggle-overflow" aria-pressed="false">Show overflow<span>Off</span></button>
           </div></details>
           <details class="app-menu"><summary>Help</summary><div class="menu-popover">
+            <button type="button" data-action="tools-guide">Tools and drawing</button>
+            <button type="button" data-action="editing-guide">Editing and layers</button>
+            <button type="button" data-action="saving-guide">Saving and exporting</button>
+            <button type="button" data-action="shortcuts-guide">Keyboard shortcuts</button>
+            <hr>
             <button type="button" data-action="about">About imagemarkup</button>
           </div></details>
         </div>
@@ -193,11 +198,11 @@ export function renderShell(root: HTMLElement): Shell {
             <label data-options="counter">Shape size <input type="range" data-style="counter-size" min="8" max="64" value="18"><output data-value="counter-size">18 px</output></label>
             <label data-options="counter">Font size <input type="range" data-style="counter-font-size" min="6" max="96" value="18"><output data-value="counter-font-size">18 px</output></label>
             <label data-options="counter">Font <select data-style="counter-font">${FONT_OPTIONS}</select></label>
-            <label data-options="redaction">Mode <select data-style="redaction-mode"><option value="pixelate">Pixelate</option><option value="blur">Blur</option></select></label>
+            <label data-options="redaction">Mode <select data-style="redaction-mode"><option value="pixelate">Pixelate</option><option value="blur">Blur</option><option value="solid">Solid</option></select></label>
             <label data-options="redaction">Strength <input data-style="redaction-strength" type="range" min="2" max="40" value="10"></label>
             <button type="button" data-action="upload-font" data-options="text" aria-label="Add font">${icon('upload', 16)}<span>Add font</span></button>
             <span class="option-spacer"></span>
-            <div class="option-actions" data-options="arrange"><button type="button" data-action="send-back" aria-label="Send to back" title="Send to back">${icon('layer-back', 16)}</button><button type="button" data-action="bring-front" aria-label="Bring to front" title="Bring to front">${icon('layer-front', 16)}</button></div>
+            <div class="option-actions" data-options="arrange"><button type="button" data-action="send-back" aria-label="Send to back" title="Send to back">${icon('layer-back', 16)}</button><button type="button" data-action="send-backward">Send backward</button><button type="button" data-action="bring-forward">Bring forward</button><button type="button" data-action="bring-front" aria-label="Bring to front" title="Bring to front">${icon('layer-front', 16)}</button></div>
           </div>
           <section class="layers-panel" aria-label="Layers" hidden>
             <div class="layers-heading" data-layers-drag-handle><strong>Layers</strong><span class="drag-grip" aria-hidden="true"></span><button class="compact-button" type="button" data-action="toggle-layers-panel" aria-label="Collapse Layers panel" aria-expanded="true" title="Collapse Layers panel">${icon('chevron-up', 15)}</button><button class="compact-button" type="button" data-action="delete-selected-layers" aria-label="Delete selected layers" title="Delete selected layers">${icon('trash', 15)}</button></div>
@@ -206,6 +211,8 @@ export function renderShell(root: HTMLElement): Shell {
           <div class="context-menu" id="layer-context-menu" role="menu" hidden>
             <button type="button" role="menuitem" data-layer-context-action="rename">Rename layer</button>
             <button type="button" role="menuitem" data-layer-context-action="duplicate">Duplicate layer <span>Ctrl+D</span></button>
+            <button type="button" role="menuitem" data-layer-context-action="bring-forward">Bring forward</button>
+            <button type="button" role="menuitem" data-layer-context-action="send-backward">Send backward</button>
             <hr>
             <button type="button" role="menuitem" data-layer-context-action="delete">Delete layer <span>Delete</span></button>
           </div>
@@ -228,6 +235,7 @@ export function renderShell(root: HTMLElement): Shell {
       </div>
       <footer class="statusbar">
         <span id="status" aria-live="polite">Ready</span>
+        <span data-autosave-status aria-live="polite" hidden></span>
         <span class="status-tip" id="canvas-instructions"></span>
         <span class="spacer"></span>
         <a class="repo-link" href="https://github.com/bradsec/imagemarkup" target="_blank" rel="noopener noreferrer">${OCTOCAT}<span>imagemarkup</span><span class="visually-hidden"> on GitHub</span><span class="app-version">v${__APP_VERSION__}</span></a>
@@ -250,6 +258,65 @@ export function renderShell(root: HTMLElement): Shell {
           <p>Bundled assets include Google Material Symbols, fonts under the SIL Open Font License, the Primer Octicons GitHub mark, and legacy Font Awesome hand gestures. <a href="./THIRD-PARTY-LICENSES.txt" target="_blank" rel="noopener noreferrer">View third-party licenses</a>.</p>
           <a class="about-repo-link" href="https://github.com/bradsec/imagemarkup" target="_blank" rel="noopener noreferrer">View imagemarkup on GitHub</a>
           <p class="about-support-copy">If you find this useful, please consider starring the repository. It helps others discover the project. You can also <a href="https://buymeacoffee.com/markbradley" target="_blank" rel="noopener noreferrer">buy me a coffee</a>.</p>
+          <div class="dialog-actions"><button value="close">Close</button></div>
+        </form>
+      </dialog>
+      <dialog id="tools-guide-dialog" class="guide-dialog" aria-labelledby="tools-guide-title">
+        <form method="dialog" class="dialog-form guide-dialog-content">
+          <div class="dialog-heading"><h2 id="tools-guide-title" tabindex="-1">Tools and drawing</h2><p>Choose a tool, then mark up the image.</p></div>
+          <dl class="help-settings">
+            <div><dt>Move and Hand</dt><dd>Move selects and transforms objects. Hand pans the canvas. Hold Space and drag to pan while using another tool.</dd></div>
+            <div><dt>Shapes and strokes</dt><dd>Rectangle, Ellipse, Line, and Arrow draw geometric marks. Pen draws freehand strokes; Highlighter adds translucent marks. Click to place a default-size shape, or drag to size it.</dd></div>
+            <div><dt>Text, Step counter, and Symbol</dt><dd>Text adds editable text. Step counter places numbered, lettered, or Roman markers. Symbol places a shape from the searchable library. Click or drag to place and size them.</dd></div>
+            <div><dt>Redact</dt><dd>Drag over an area to cover it with pixelation, blur, or an opaque solid color. Choose the mode in Tool options.</dd></div>
+            <div><dt>Place image and Crop</dt><dd>Place image adds a file as an editable layer. Crop selects the area to keep; drag or click for a default area, then Apply crop or Cancel.</dd></div>
+            <div><dt>Canvas placement</dt><dd>With the canvas focused, press Enter or Space to place a default-size shape, text, counter, symbol, redaction, or crop at the viewport center.</dd></div>
+            <div><dt>Stroke and fill</dt><dd>Use the rail swatches or Tool options to set colors. Swap exchanges stroke and fill; Reset restores their defaults. Tool options also controls thickness, opacity, and settings for the active tool.</dd></div>
+            <div><dt>Drawing modifiers</dt><dd>Hold Shift to constrain proportions when drawing or resizing, or to snap rotation to 45-degree steps. Hold Alt or Option to draw or resize from the center.</dd></div>
+          </dl>
+          <div class="dialog-actions"><button value="close">Close</button></div>
+        </form>
+      </dialog>
+      <dialog id="editing-guide-dialog" class="guide-dialog" aria-labelledby="editing-guide-title">
+        <form method="dialog" class="dialog-form guide-dialog-content">
+          <div class="dialog-heading"><h2 id="editing-guide-title" tabindex="-1">Editing and layers</h2><p>Adjust objects and the base image.</p></div>
+          <dl class="help-settings">
+            <div><dt>Select objects</dt><dd>Use Move to click an object, or drag empty canvas for a marquee. Shift selects a range in Layers; Ctrl or Cmd adds separate items. Drag a selection to move it.</dd></div>
+            <div><dt>Resize and rotate</dt><dd>Drag selection handles to resize or rotate. Enter exact width and height in the dimensions controls, choose units in Preferences, and toggle the aspect lock as needed.</dd></div>
+            <div><dt>Layers</dt><dd>Each object has a row. Show or hide it, lock it, rename it, or drag to reorder. Right-click a row for duplicate, delete, and one-step ordering; focus a row and use Alt+ArrowUp or Alt+ArrowDown to reorder.</dd></div>
+            <div><dt>Duplicate, delete, undo</dt><dd>Use Edit or Ctrl/Cmd+D to duplicate a selection. Delete or Backspace removes it. Undo and Redo restore or repeat changes.</dd></div>
+            <div><dt>Image transforms</dt><dd>Image > Rotate, flip, resize changes the base image and annotations. Crop keeps the chosen area; it clips crossing layers and removes layers outside it.</dd></div>
+            <div><dt>Frame and watermark</dt><dd>Image > Frame and watermark adds a border or a text or image watermark to exported work.</dd></div>
+          </dl>
+          <div class="dialog-actions"><button value="close">Close</button></div>
+        </form>
+      </dialog>
+      <dialog id="saving-guide-dialog" class="guide-dialog" aria-labelledby="saving-guide-title">
+        <form method="dialog" class="dialog-form guide-dialog-content">
+          <div class="dialog-heading"><h2 id="saving-guide-title" tabindex="-1">Saving and exporting</h2><p>Keep an editable project or share a flat image.</p></div>
+          <dl class="help-settings">
+            <div><dt>Open image</dt><dd>Choose File > Open image, paste, or drop a file on the editor. Opening another image asks before replacing current work; Undo can restore it.</dd></div>
+            <div><dt>Autosave</dt><dd>The browser saves work locally and restores it on return. If saving fails, Autosave unavailable stays in the status bar until a save succeeds.</dd></div>
+            <div><dt>Editable projects</dt><dd>File > Save project downloads a .imgmarkup file. Open project restores its image and layers after confirmation if work is already open.</dd></div>
+            <div><dt>Project size</dt><dd>Project files have a 110 MB limit, with a 100 MB encoded image-data budget across the base image, placed images, and image watermark. An oversized image or project reports an error.</dd></div>
+            <div><dt>Copy and export</dt><dd>Copy PNG sends a flattened image to the clipboard. Export image downloads PNG or JPG at 1x or 2x; JPG offers a quality control.</dd></div>
+            <div><dt>Overflow and transparency</dt><dd>View > Show overflow reveals off-canvas marks and expands exports. PNG keeps transparent areas; JPG fills them white.</dd></div>
+            <div><dt>Preferences</dt><dd>File > Preferences stores measurement units, conversion resolution, and selection color in this browser. Reset settings restores editor defaults without changing artwork.</dd></div>
+          </dl>
+          <div class="dialog-actions"><button value="close">Close</button></div>
+        </form>
+      </dialog>
+      <dialog id="shortcuts-guide-dialog" class="guide-dialog" aria-labelledby="shortcuts-guide-title">
+        <form method="dialog" class="dialog-form guide-dialog-content">
+          <div class="dialog-heading"><h2 id="shortcuts-guide-title" tabindex="-1">Keyboard shortcuts</h2><p>Single-key tool shortcuts work only when the canvas has focus.</p></div>
+          <dl class="help-settings">
+            <div><dt>Tools</dt><dd>V Move, R Rectangle, O Ellipse, L Line, A Arrow, P Pen, H Highlighter, T Text, C Step counter, B Redact.</dd></div>
+            <div><dt>Place and pan</dt><dd>On the focused canvas, Enter or Space places the active placement tool at the viewport center. Hold Space and drag to pan.</dd></div>
+            <div><dt>Nudge and crop</dt><dd>Arrow keys move a selection or crop by 1 pixel; Shift+Arrow moves it by 10. Enter applies a crop; Escape cancels it or returns to Move.</dd></div>
+            <div><dt>Layers and selection</dt><dd>Alt+ArrowUp or Alt+ArrowDown reorders a focused layer row. Ctrl/Cmd+D duplicates a selection; Delete or Backspace removes it.</dd></div>
+            <div><dt>File and edit</dt><dd>Ctrl/Cmd+N new project, Ctrl/Cmd+O open image, Ctrl/Cmd+S save project, Ctrl/Cmd+E export, Ctrl/Cmd+C copy PNG, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z redo.</dd></div>
+            <div><dt>View</dt><dd>Use the View menu to fit the image or show actual size. + and - zoom the focused canvas. The mouse wheel zooms at the pointer.</dd></div>
+          </dl>
           <div class="dialog-actions"><button value="close">Close</button></div>
         </form>
       </dialog>

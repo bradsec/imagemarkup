@@ -6,6 +6,9 @@ export class AnnotationHistory {
   private past: Snapshot[] = [];
   private future: Snapshot[] = [];
 
+  canUndo(): boolean { return this.past.length > 0; }
+  canRedo(): boolean { return this.future.length > 0; }
+
   record(scene: Scene): void {
     this.past.push(snapshot(scene));
     if (this.past.length > LIMIT) this.past.shift();

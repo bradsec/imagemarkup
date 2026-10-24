@@ -4,7 +4,7 @@ import { mountCanvasHost } from './ui/canvas-host';
 import { renderShell } from './ui/shell';
 import { mountOptionsPreview } from './ui/options-preview';
 import { downloadBlob, exportScene, type ExportFormat } from './render/export';
-import { MAX_PROJECT_FILE_BYTES, parseScene, serializeScene, type SerializedScene } from './core/serialize';
+import { MAX_PROJECT_FILE_BYTES, MAX_PROJECT_IMAGE_DATA_LENGTH, parseScene, projectImageDataLength, serializeScene, type SerializedScene } from './core/serialize';
 import { decodeImageDataUrl, decodeImageFile } from './io/load-image';
 import { createAutosaveStorage, loadAutosave, startAutosave } from './state/autosave';
 import { cropAnnotations, scaleAnnotation, transformAnnotation, type FrameTransform } from './core/transform';
@@ -61,6 +61,9 @@ function readPreferences(): EditorPreferences {
 
 export function startApp(root: HTMLElement): void {
   const { stageHost, statusEl } = renderShell(root);
+  const autosaveStatus = root.querySelector<HTMLElement>('[data-autosave-status]');
+  const autosaveUnavailable = () => { if (autosaveStatus?.hidden) { autosaveStatus.hidden = false; autosaveStatus.textContent = 'Autosave unavailable'; } };
+  const autosaveAvailable = () => { if (autosaveStatus) { autosaveStatus.hidden = true; autosaveStatus.textContent = ''; } };
   let preferences = readPreferences();
   let panelLayout = readPanelLayout();
   setSelectionColor(preferences.selectionColor);
@@ -87,6 +90,7 @@ export function startApp(root: HTMLElement): void {
   const selectionHeight = root.querySelector<HTMLInputElement>('[data-selection-size="height"]')!;
   const selectionAspectButton = root.querySelector<HTMLButtonElement>('[data-action="toggle-selection-aspect"]')!;
   const toolButtons = [...root.querySelectorAll<HTMLButtonElement>('.toolrail [data-tool]')];
+  const toolList = root.querySelector<HTMLElement>('.tool-list')!;
   const overflowButton = root.querySelector<HTMLButtonElement>('[data-action="toggle-overflow"]')!;
   const canvasInstructions = root.querySelector<HTMLElement>('#canvas-instructions')!;
   const toolHints: Partial<Record<Tool, string>> = {
@@ -178,7 +182,7 @@ export function startApp(root: HTMLElement): void {
   root.querySelector<HTMLButtonElement>('[data-action="new-project"]')!.addEventListener('click', () => {
     const scene = store.get();
     if ((scene.image || scene.objects.length > 0) && !window.confirm('Start a new project? This clears the current image and markup.')) return;
-    canvasHost.setScene(createScene());
+    canvasHost.setScene(createScene(), true);
     statusEl.textContent = 'New project';
   });
   root.querySelector<HTMLButtonElement>('[data-action="delete"]')!.addEventListener('click', canvasHost.deleteSelected);
@@ -293,6 +297,14 @@ export function startApp(root: HTMLElement): void {
   const counterFont = root.querySelector<HTMLSelectElement>('[data-style="counter-font"]')!;
   const counterTextColor = root.querySelector<HTMLInputElement>('[data-style="counter-text-color"]')!;
   const optionsbar = root.querySelector<HTMLElement>('.optionsbar')!;
+  const dimensionsDesktopParent = selectionDimensions.parentElement!;
+  const mobileOptions = window.matchMedia('(max-width: 760px)');
+  const positionSelectionDimensions = () => {
+    if (mobileOptions.matches) optionsbar.prepend(selectionDimensions);
+    else dimensionsDesktopParent.prepend(selectionDimensions);
+  };
+  mobileOptions.addEventListener?.('change', positionSelectionDimensions);
+  positionSelectionDimensions();
   const previewTile = optionsbar.querySelector<HTMLElement>('.tool-options-preview')!;
   const requestOptionsPreview = mountOptionsPreview(previewTile, previewTile.querySelector('canvas')!, () => store.get(), () => {
     const scene = store.get();
@@ -441,6 +453,11 @@ export function startApp(root: HTMLElement): void {
   }
   function renderLayers(scene: Scene): void {
     const selected = new Set(selectedLayerIds(scene));
+    const focused = document.activeElement instanceof HTMLElement && layersList.contains(document.activeElement) ? document.activeElement : null;
+    const focusedRow = focused?.closest<HTMLElement>('[data-layer-id]');
+    const focusedIndex = focusedRow ? [...layersList.children].indexOf(focusedRow) : -1;
+    const focusedId = focusedRow?.dataset.layerId;
+    const focusedAction = focused?.dataset.action;
     layersList.replaceChildren(...[...scene.objects].reverse().map((object) => {
       const row = document.createElement('div');
       const name = layerName(object);
@@ -467,6 +484,14 @@ export function startApp(root: HTMLElement): void {
       row.append(visibility, lock, select, remove);
       return row;
     }));
+    if (focused) {
+      const row = [...layersList.querySelectorAll<HTMLElement>('[data-layer-id]')].find((item) => item.dataset.layerId === focusedId)
+        ?? layersList.children[Math.min(focusedIndex, layersList.children.length - 1)] as HTMLElement | undefined;
+      const target = row?.querySelector<HTMLButtonElement>(`[data-action="${focusedAction}"]`)
+        ?? row?.querySelector<HTMLButtonElement>('[data-action="select-layer"]');
+      if (target) target.focus({ preventScroll: true });
+      else { layersList.tabIndex = -1; layersList.focus({ preventScroll: true }); }
+    }
   }
   function syncUi(): void {
     const scene = store.get();
@@ -476,6 +501,9 @@ export function startApp(root: HTMLElement): void {
     const style = selected?.style ?? scene.toolStyle;
     const context = selected?.locked ? 'select' : selected?.type ?? scene.activeTool;
     const visible = new Set(optionMap[context] ?? []);
+    const solidRedaction = context === 'redaction' && (selected?.type === 'redaction' ? selected.mode : scene.redactionMode) === 'solid';
+    if (solidRedaction) visible.add('fill');
+    root.querySelector<HTMLElement>('[data-options="fill"] .paint-toggle-wrap')!.hidden = solidRedaction;
     if (multiSymbols) visible.delete('symbol');
     const supportsStrokeToggle = visible.has('stroke-toggle');
     const implicitSymbolFill = selected?.type === 'symbol' && selected.paint !== 'separate'
@@ -519,7 +547,7 @@ export function startApp(root: HTMLElement): void {
     selectHint.textContent = selected?.locked ? 'Unlock this item in Layers to edit it' : 'Select an object to edit its properties';
     // Show the options as a panel anchored to the active tool on the left rail,
     // and hide it for tools and states that have nothing to configure.
-    const hasOptions = (optionMap[context]?.length ?? 0) > 0 || Boolean(selected) || multi;
+    const hasOptions = Boolean(scene.image) && ((optionMap[context]?.length ?? 0) > 0 || Boolean(selected) || multi);
     optionsbar.hidden = !hasOptions;
     layersPanel.hidden = !scene.image;
     if (optionsPanelContext !== context) {
@@ -536,14 +564,21 @@ export function startApp(root: HTMLElement): void {
     if (hasOptions && optionsbar.dataset.moved === 'true') queueMicrotask(() => clampFloatingPanel(optionsbar));
     if (!layersPanel.hidden && layersPanel.dataset.moved === 'true') queueMicrotask(() => clampFloatingPanel(layersPanel));
     stageHost.dataset.activeTool = scene.activeTool;
-    for (const button of toolButtons) button.setAttribute('aria-pressed', String(button.dataset.tool === scene.activeTool));
+    const hasImage = Boolean(scene.image);
+    for (const button of toolButtons) { button.setAttribute('aria-pressed', String(button.dataset.tool === scene.activeTool)); button.disabled = !hasImage; }
+    // Disabled tools cannot take focus, so the scrollable list must, or keyboard users cannot scroll it.
+    if (hasImage) toolList.removeAttribute('tabindex'); else toolList.tabIndex = 0;
+    for (const control of root.querySelectorAll<HTMLButtonElement>('[data-action="fit"], [data-action="actual-size"], [data-action="zoom-in"], [data-action="zoom-out"], [data-action="toggle-overflow"], [data-action="swap-colors"], [data-action="default-colors"]')) control.disabled = !hasImage;
+    for (const control of root.querySelectorAll<HTMLInputElement>('[data-rail-color]')) control.disabled = !hasImage;
     zoomValue.value = `${Math.round(scene.viewport.scale * 100)}%`;
     overflowButton.setAttribute('aria-pressed', String(scene.showOverflow));
     overflowButton.querySelector('span')!.textContent = scene.showOverflow ? 'On' : 'Off';
     const hasDeletableSelection = layerSelection.some((id) => !scene.objects.find((object) => object.id === id)?.locked);
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="delete"]')) button.disabled = !hasDeletableSelection;
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="duplicate"]')) button.disabled = layerSelection.length === 0;
-    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="send-back"], [data-action="bring-front"]')) button.disabled = !selected;
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="send-back"], [data-action="bring-front"], [data-action="send-backward"], [data-action="bring-forward"]')) button.disabled = !selected;
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="undo"]')) button.disabled = !canvasHost.canUndo();
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="redo"]')) button.disabled = !canvasHost.canRedo();
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="copy"], [data-action="export"], [data-action="frame"], [data-action="transform"], [data-action="save-project"]')) button.disabled = !scene.image;
     renderLayers(scene);
     const active = document.activeElement;
@@ -551,9 +586,9 @@ export function startApp(root: HTMLElement): void {
       color.value = style.color;
       railColor.value = style.color;
       strokeEnabled.checked = context === 'symbol' && implicitSymbolFill ? false : !supportsStrokeToggle || style.stroke !== false;
-      fillEnabled.checked = Boolean(style.fill) || (context === 'symbol' && implicitSymbolFill);
-      if (style.fill || (context === 'symbol' && implicitSymbolFill)) {
-        fill.value = implicitSymbolFill ? style.color : style.fill!;
+      fillEnabled.checked = solidRedaction || Boolean(style.fill) || (context === 'symbol' && implicitSymbolFill);
+      if (solidRedaction || style.fill || (context === 'symbol' && implicitSymbolFill)) {
+        fill.value = solidRedaction ? style.fill ?? '#000000' : implicitSymbolFill ? style.color : style.fill!;
         railFill.value = fill.value;
       }
       fill.disabled = !fillEnabled.checked;
@@ -601,6 +636,12 @@ export function startApp(root: HTMLElement): void {
       counterTextColor.value = counterSelected?.textColor ?? (counterSelected && !(counterSelected.filled ?? true) ? counterSelected.style.color : scene.counterTextColor);
       root.querySelector<HTMLOutputElement>('[data-value="counter-size"]')!.value = formatMeasurement(cSize);
       root.querySelector<HTMLOutputElement>('[data-value="counter-font-size"]')!.value = formatMeasurement(Number(counterFontSize.value));
+    }
+    if (solidRedaction) {
+      fillEnabled.checked = true;
+      fill.value = style.fill ?? '#000000';
+      fill.disabled = false;
+      root.querySelector<HTMLButtonElement>('[data-color-target="fill"]')!.disabled = false;
     }
     opacity.value = String(Math.round(style.opacity * 100));
     root.querySelector<HTMLOutputElement>('[data-value="opacity"]')!.value = `${opacity.value}%`;
@@ -716,6 +757,13 @@ export function startApp(root: HTMLElement): void {
       });
     }
   });
+  layersList.addEventListener('keydown', (event) => {
+    if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+    const row = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-layer-id]') : null;
+    if (!row) return;
+    event.preventDefault();
+    reorderOne(row.dataset.layerId!, event.key === 'ArrowUp' ? 1 : -1);
+  });
   const layerContextMenu = root.querySelector<HTMLElement>('#layer-context-menu')!;
   let layerContextId: string | null = null;
   let layerContextInvoker: HTMLElement | null = null;
@@ -775,6 +823,14 @@ export function startApp(root: HTMLElement): void {
     layerContextMenu.hidden = true;
     canvasHost.duplicateSelected();
   });
+  for (const [action, direction] of [['bring-forward', 1], ['send-backward', -1]] as const) {
+    layerContextMenu.querySelector<HTMLButtonElement>(`[data-layer-context-action="${action}"]`)!.addEventListener('click', () => {
+      layerContextMenu.hidden = true;
+      if (layerContextId) reorderOne(layerContextId, direction);
+      [...layersList.querySelectorAll<HTMLElement>('[data-layer-id]')].find((row) => row.dataset.layerId === layerContextId)
+        ?.querySelector<HTMLButtonElement>('[data-action="select-layer"]')?.focus({ preventScroll: true });
+    });
+  }
   layerContextMenu.querySelector<HTMLButtonElement>('[data-layer-context-action="delete"]')!.addEventListener('click', () => {
     layerContextMenu.hidden = true;
     canvasHost.deleteSelected();
@@ -912,7 +968,7 @@ export function startApp(root: HTMLElement): void {
       const selected = scene.objects.find((object) => object.id === (multiSymbols ? scene.selectedIds[0] : scene.selectedId));
       const context = selected?.type ?? scene.activeTool;
       const canDisableStroke = context === 'rect' || context === 'ellipse' || context === 'symbol';
-      const style = { color: color.value, width: Number(width.value), opacity: Number(opacity.value) / 100, fill: fillEnabled.checked ? fill.value : context === 'symbol' ? null : undefined, stroke: canDisableStroke ? strokeEnabled.checked : true, lineCap: lineCap.value as CanvasLineCap, lineJoin: lineJoin.value as CanvasLineJoin };
+      const style = { color: color.value, width: Number(width.value), opacity: Number(opacity.value) / 100, fill: context === 'redaction' && (selected?.type === 'redaction' ? selected.mode : scene.redactionMode) === 'solid' ? fill.value : fillEnabled.checked ? fill.value : context === 'symbol' ? null : undefined, stroke: canDisableStroke ? strokeEnabled.checked : true, lineCap: lineCap.value as CanvasLineCap, lineJoin: lineJoin.value as CanvasLineJoin };
       return {
         ...scene,
         toolStyle: style,
@@ -1020,8 +1076,20 @@ export function startApp(root: HTMLElement): void {
     if (front) objects.push(object); else objects.unshift(object);
     store.set({ objects });
   }
+  function reorderOne(id: string, direction: 1 | -1): void {
+    const scene = store.get();
+    const index = scene.objects.findIndex((object) => object.id === id);
+    const next = index + direction;
+    if (index < 0 || next < 0 || next >= scene.objects.length || scene.objects[index].locked) return;
+    canvasHost.checkpointScene();
+    const objects = [...scene.objects];
+    [objects[index], objects[next]] = [objects[next], objects[index]];
+    store.set({ objects, selectedId: id, selectedIds: [] });
+  }
   root.querySelector<HTMLButtonElement>('[data-action="send-back"]')!.addEventListener('click', () => reorder(false));
   root.querySelector<HTMLButtonElement>('[data-action="bring-front"]')!.addEventListener('click', () => reorder(true));
+  root.querySelector<HTMLButtonElement>('[data-action="send-backward"]')!.addEventListener('click', () => { if (store.get().selectedId) reorderOne(store.get().selectedId!, -1); });
+  root.querySelector<HTMLButtonElement>('[data-action="bring-forward"]')!.addEventListener('click', () => { if (store.get().selectedId) reorderOne(store.get().selectedId!, 1); });
   contextMenu.querySelector<HTMLButtonElement>('[data-context-action="send-back"]')!.addEventListener('click', () => { reorder(false); contextMenu.hidden = true; contextMenuInvoker.focus({ preventScroll: true }); });
   contextMenu.querySelector<HTMLButtonElement>('[data-context-action="bring-front"]')!.addEventListener('click', () => { reorder(true); contextMenu.hidden = true; contextMenuInvoker.focus({ preventScroll: true }); });
   contextMenu.querySelector<HTMLButtonElement>('[data-context-action="delete"]')!.addEventListener('click', () => { canvasHost.deleteSelected(); contextMenu.hidden = true; contextMenuInvoker.focus({ preventScroll: true }); });
@@ -1093,6 +1161,13 @@ export function startApp(root: HTMLElement): void {
     const leading = Math.max(0.5, Math.min(3, Number(lineHeight.value) || 1.2));
     letterSpacing.value = String(tracking);
     lineHeight.value = String(leading);
+    const currentScene = store.get();
+    const selected = new Set(selectedLayerIds(currentScene));
+    if (currentScene.objects.some((object) => selected.has(object.id) && object.type === 'text'
+      && (object.fontFamily !== family || object.fontSize !== size || (object.letterSpacing ?? 0) !== tracking
+        || (object.lineHeight ?? 1.2) !== leading || object.fontWeight !== fontWeight.value
+        || (object.fontStyle ?? 'normal') !== fontStyle.value || Boolean(object.underline) !== textUnderline.checked
+        || object.align !== textAlign.value))) canvasHost.checkpoint();
     store.update((scene) => ({
       ...scene,
       fontFamily: family,
@@ -1112,27 +1187,34 @@ export function startApp(root: HTMLElement): void {
   font.addEventListener('change', updateTextStyle);
   fontSize.addEventListener('input', () => { fontSizePreset.value = [...fontSizePreset.options].some((option) => option.value === fontSize.value) ? fontSize.value : ''; updateTextStyle(); });
   fontSize.addEventListener('change', () => { fontSize.value = String(Math.max(8, Math.ceil(Number(fontSize.value) || 8))); fontSizePreset.value = [...fontSizePreset.options].some((option) => option.value === fontSize.value) ? fontSize.value : ''; updateTextStyle(); });
-  for (const input of [letterSpacing, lineHeight]) input.addEventListener('change', () => { canvasHost.checkpoint(); updateTextStyle(); });
+  for (const input of [letterSpacing, lineHeight]) input.addEventListener('change', updateTextStyle);
   fontWeight.addEventListener('change', updateTextStyle);
   fontStyle.addEventListener('change', updateTextStyle);
   textUnderline.addEventListener('change', updateTextStyle);
   textAlign.addEventListener('change', updateTextStyle);
-  boldButton.addEventListener('click', () => { canvasHost.checkpoint(); fontWeight.value = fontWeight.value === 'bold' ? 'normal' : 'bold'; updateTextStyle(); });
-  italicButton.addEventListener('click', () => { canvasHost.checkpoint(); fontStyle.value = fontStyle.value === 'italic' ? 'normal' : 'italic'; updateTextStyle(); });
-  underlineButton.addEventListener('click', () => { canvasHost.checkpoint(); textUnderline.checked = !textUnderline.checked; updateTextStyle(); });
+  boldButton.addEventListener('click', () => { fontWeight.value = fontWeight.value === 'bold' ? 'normal' : 'bold'; updateTextStyle(); });
+  italicButton.addEventListener('click', () => { fontStyle.value = fontStyle.value === 'italic' ? 'normal' : 'italic'; updateTextStyle(); });
+  underlineButton.addEventListener('click', () => { textUnderline.checked = !textUnderline.checked; updateTextStyle(); });
   fontSizePreset.addEventListener('change', () => {
     if (!fontSizePreset.value) return;
-    canvasHost.checkpoint();
     fontSize.value = fontSizePreset.value;
     updateTextStyle();
   });
   function updateRedaction(): void {
+    if (store.get().objects.some((object) => object.id === store.get().selectedId && object.type === 'redaction')) canvasHost.checkpoint();
+    if (redactionMode.value === 'solid') {
+      const scene = store.get();
+      const selected = scene.objects.find((object) => object.id === scene.selectedId);
+      fill.value = selected?.style.fill ?? scene.toolStyle.fill ?? '#000000';
+      fillEnabled.checked = true;
+    }
     store.update((scene) => ({
       ...scene,
       redactionMode: redactionMode.value as Scene['redactionMode'],
       redactionStrength: Number(redactionStrength.value),
+      toolStyle: redactionMode.value === 'solid' ? { ...scene.toolStyle, fill: fill.value } : scene.toolStyle,
       objects: scene.objects.map((object) => object.id === scene.selectedId && object.type === 'redaction'
-        ? { ...object, mode: redactionMode.value as Scene['redactionMode'], strength: Number(redactionStrength.value) }
+        ? { ...object, mode: redactionMode.value as Scene['redactionMode'], strength: Number(redactionStrength.value), style: redactionMode.value === 'solid' ? { ...object.style, fill: fill.value } : object.style }
         : object),
     }));
   }
@@ -1168,7 +1250,7 @@ export function startApp(root: HTMLElement): void {
     (source as ImageBitmap | undefined)?.close?.();
   }
 
-  async function restore(dto: SerializedScene, canApply: () => boolean = () => true): Promise<boolean> {
+  async function restore(dto: SerializedScene, canApply: () => boolean = () => true, undoable = false): Promise<boolean> {
     await uploadedFontsReady;
     const decoded: CanvasImageSource[] = [];
     const decode = async (dataUrl: string): Promise<CanvasImageSource> => {
@@ -1186,7 +1268,7 @@ export function startApp(root: HTMLElement): void {
         ? { ...dto.watermark, source: await decode(dto.watermark.dataUrl) }
         : dto.watermark;
       if (!canApply()) return false;
-      canvasHost.setScene({ ...dto, image, objects, watermark, showOverflow: dto.showOverflow ?? false, arrowStartHead: dto.arrowStartHead ?? 'none', arrowEndHead: dto.arrowEndHead ?? 'open', fontStyle: dto.fontStyle ?? 'normal', textUnderline: dto.textUnderline ?? false, letterSpacing: dto.letterSpacing ?? 0, lineHeight: dto.lineHeight ?? 1.2, symbolPoints: dto.symbolPoints ?? 5, symbolInnerRatio: dto.symbolInnerRatio ?? 0.43, symbolSides: dto.symbolSides ?? 6, counterFormat: dto.counterFormat ?? 'numeric', counterNext: dto.counterNext ?? Math.max(1, ...dto.objects.filter((object) => object.type === 'counter').map((object) => object.n + 1)), counterFontSize: dto.counterFontSize ?? dto.counterSize ?? 18, counterFontFamily: dto.counterFontFamily ?? 'system-ui', counterTextColor: dto.counterTextColor ?? '#ffffff', selectedId: null, selectedIds: [], marquee: null });
+      canvasHost.setScene({ ...dto, image, objects, watermark, showOverflow: dto.showOverflow ?? false, arrowStartHead: dto.arrowStartHead ?? 'none', arrowEndHead: dto.arrowEndHead ?? 'open', fontStyle: dto.fontStyle ?? 'normal', textUnderline: dto.textUnderline ?? false, letterSpacing: dto.letterSpacing ?? 0, lineHeight: dto.lineHeight ?? 1.2, symbolPoints: dto.symbolPoints ?? 5, symbolInnerRatio: dto.symbolInnerRatio ?? 0.43, symbolSides: dto.symbolSides ?? 6, counterFormat: dto.counterFormat ?? 'numeric', counterNext: dto.counterNext ?? Math.max(1, ...dto.objects.filter((object) => object.type === 'counter').map((object) => object.n + 1)), counterFontSize: dto.counterFontSize ?? dto.counterSize ?? 18, counterFontFamily: dto.counterFontFamily ?? 'system-ui', counterTextColor: dto.counterTextColor ?? '#ffffff', selectedId: null, selectedIds: [], marquee: null }, undoable);
       return true;
     } finally {
       const retained = new Set(sceneSources(store.get()));
@@ -1196,27 +1278,27 @@ export function startApp(root: HTMLElement): void {
 
   try {
     const autosave = createAutosaveStorage(indexedDB);
+    startAutosave(store, autosave, { onError: autosaveUnavailable, onSuccess: autosaveAvailable });
     void (async () => {
       const startupScene = store.get();
       try {
         const saved = await loadAutosave(autosave);
         if (saved && store.get() === startupScene) await restore(saved, () => store.get() === startupScene);
-      } catch {
-        try {
-          await autosave.removeItem('imagemarkup-autosave');
-        } catch {
-          statusEl.textContent = 'Autosave unavailable';
-        }
+      } catch (error) {
+        statusEl.textContent = `Autosave restore failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
-      startAutosave(store, autosave, { onError: () => { statusEl.textContent = 'Autosave unavailable'; } });
-    })().catch(() => { statusEl.textContent = 'Autosave unavailable'; });
+    })().catch(autosaveUnavailable);
   } catch {
-    statusEl.textContent = 'Autosave unavailable';
+    autosaveUnavailable();
   }
 
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="save-project"]')) button.addEventListener('click', () => {
-    downloadBlob(new Blob([serializeScene(store.get())], { type: 'application/json' }), 'imagemarkup.imgmarkup');
-    statusEl.textContent = 'Project saved';
+    try {
+      downloadBlob(new Blob([serializeScene(store.get())], { type: 'application/json' }), 'imagemarkup.imgmarkup');
+      statusEl.textContent = 'Project saved';
+    } catch (error) {
+      statusEl.textContent = error instanceof Error ? error.message : 'Could not save project';
+    }
   });
   const projectInput = document.createElement('input');
   projectInput.type = 'file';
@@ -1229,8 +1311,10 @@ export function startApp(root: HTMLElement): void {
     if (!file) return;
     try {
       if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('Project file is too large');
-      await restore(parseScene(await file.text()));
-      statusEl.textContent = 'Project opened';
+      const project = parseScene(await file.text());
+      const scene = store.get();
+      if ((scene.image || scene.objects.length) && !window.confirm('Open a project? This replaces the current image and markup.')) return;
+      statusEl.textContent = await restore(project, () => store.get() === scene, true) ? 'Project opened' : 'Project open cancelled because the canvas changed';
     } catch (error) {
       statusEl.textContent = error instanceof Error ? error.message : 'Could not open project';
     }
@@ -1262,6 +1346,10 @@ export function startApp(root: HTMLElement): void {
     statusEl.textContent = showOverflow ? 'Overflow visible and included in export' : 'Overflow hidden';
   });
   root.querySelector<HTMLButtonElement>('[data-action="about"]')!.addEventListener('click', (event) => openDialog(root.querySelector<HTMLDialogElement>('#about-dialog')!, event.currentTarget as HTMLElement));
+  for (const guide of ['tools', 'editing', 'saving', 'shortcuts']) {
+    root.querySelector<HTMLButtonElement>(`[data-action="${guide}-guide"]`)!.addEventListener('click', (event) =>
+      openDialog(root.querySelector<HTMLDialogElement>(`#${guide}-guide-dialog`)!, event.currentTarget as HTMLElement));
+  }
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="export"]')) button.addEventListener('click', (event) => {
     if (store.get().image) { syncExportOptions(); openDialog(dialog, event.currentTarget as HTMLElement); }
   });
@@ -1363,7 +1451,18 @@ export function startApp(root: HTMLElement): void {
       const borderWidth = Math.max(0, Number(form.get('borderWidth')));
       const watermarkText = String(form.get('watermarkText') ?? '').trim();
       const watermarkFile = form.get('watermarkImage');
-      const watermarkImage = watermarkFile instanceof File && watermarkFile.size ? await decodeImageFile(watermarkFile) : null;
+      const frameScene = store.get();
+      const remainingImageData = MAX_PROJECT_IMAGE_DATA_LENGTH - projectImageDataLength({ ...frameScene, watermark: null });
+      const watermarkImage = watermarkFile instanceof File && watermarkFile.size ? await decodeImageFile(watermarkFile, remainingImageData) : null;
+      if (store.get() !== frameScene) {
+        (watermarkImage?.source as ImageBitmap | undefined)?.close?.();
+        statusEl.textContent = 'Frame settings cancelled because the canvas changed';
+        return;
+      }
+      if (watermarkImage && projectImageDataLength({ ...store.get(), watermark: { kind: 'image', dataUrl: watermarkImage.dataUrl, opacity: 1, scale: 1, tile: false } }) > MAX_PROJECT_IMAGE_DATA_LENGTH) {
+        (watermarkImage.source as ImageBitmap).close?.();
+        throw new Error('Project image data is too large');
+      }
       const currentWatermark = store.get().watermark;
       const existingImage = currentWatermark?.kind === 'image' ? currentWatermark : null;
       const angle = Math.max(-180, Math.min(180, Number(form.get('watermarkAngle'))));
@@ -1473,11 +1572,12 @@ export function startApp(root: HTMLElement): void {
     transformAspectRatio = image.width / image.height;
     resizeWidthInput.value = String(image.width);
     resizeHeightInput.value = String(image.height);
+    transformDialog.returnValue = '';
     openDialog(transformDialog, event.currentTarget as HTMLElement);
   });
   transformDialog.addEventListener('close', () => {
     const action = transformDialog.returnValue;
-    if (action === 'cancel' || !store.get().image) return;
+    if (!['resize', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical'].includes(action) || !store.get().image) return;
     const scene = store.get();
     const image = scene.image!;
     canvasHost.cancelGesture();

@@ -16,18 +16,23 @@ export interface AutosaveOptions {
   delay?: number;
   key?: string;
   onError?: (error: unknown) => void;
+  onSuccess?: () => void;
 }
 
 export function startAutosave(
   store: Pick<Store<Scene>, 'get' | 'subscribe'>,
   storage: Pick<AutosaveStorage, 'setItem'>,
-  { delay = 500, key = AUTOSAVE_KEY, onError = console.error }: AutosaveOptions = {},
+  { delay = 500, key = AUTOSAVE_KEY, onError = console.error, onSuccess }: AutosaveOptions = {},
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const unsubscribe = store.subscribe(() => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      void storage.setItem(key, serializeScene(store.get())).catch(onError);
+      try {
+        void storage.setItem(key, serializeScene(store.get())).then(onSuccess).catch(onError);
+      } catch (error) {
+        onError(error);
+      }
     }, delay);
   });
   return () => {
