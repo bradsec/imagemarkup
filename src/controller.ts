@@ -170,6 +170,9 @@ export function startApp(root: HTMLElement): void {
         : { ...scene.toolStyle, opacity: 1 });
       canvasHost.cancelGesture();
       store.set({ activeTool, toolStyle, selectedId: null, selectedIds: [], marquee: null, crop: null });
+      // On phones a tool choice shows its options; drawing on the canvas collapses them again.
+      // A tool without options must not collapse an open Layers panel.
+      if (compactPanels.matches && !optionsbar.hidden) setOptionsCollapsed(false);
       if (activeTool === 'crop') updateCropRatio();
       if (activeTool === 'image') canvasHost.openImage('place');
     });
@@ -297,9 +300,19 @@ export function startApp(root: HTMLElement): void {
   const optionsbar = root.querySelector<HTMLElement>('.optionsbar')!;
   const dimensionsDesktopParent = selectionDimensions.parentElement!;
   const mobileOptions = window.matchMedia('(max-width: 760px)');
+  // Phones in either orientation; keep in step with the matching media query in style.css.
+  const compactPanels = window.matchMedia('(max-width: 760px), (pointer: coarse) and (max-height: 500px)');
+  // Crossing the breakpoint hides the old container by CSS, which can blur the field before the
+  // change listener runs; remember it so focus survives an orientation change.
+  let lastDimensionFocus: HTMLElement | null = null;
+  selectionDimensions.addEventListener('focusin', (event) => { lastDimensionFocus = event.target as HTMLElement; });
+  selectionDimensions.addEventListener('focusout', (event) => { if (event.relatedTarget) lastDimensionFocus = null; });
   const positionSelectionDimensions = () => {
-    if (mobileOptions.matches) optionsbar.prepend(selectionDimensions);
+    const active = document.activeElement;
+    const focused = selectionDimensions.contains(active) ? active as HTMLElement : active === document.body ? lastDimensionFocus : null;
+    if (mobileOptions.matches) optionsbar.querySelector('.options-heading')!.after(selectionDimensions);
     else dimensionsDesktopParent.prepend(selectionDimensions);
+    focused?.focus({ preventScroll: true });
   };
   mobileOptions.addEventListener?.('change', positionSelectionDimensions);
   positionSelectionDimensions();
@@ -324,10 +337,12 @@ export function startApp(root: HTMLElement): void {
       panel.style.removeProperty('left');
       panel.style.removeProperty('top');
       panel.style.removeProperty('right');
+      panel.style.removeProperty('bottom');
       return;
     }
     panel.dataset.moved = 'true';
     panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
     panel.style.left = `${position.left}px`;
     panel.style.top = `${position.top}px`;
   };
@@ -335,8 +350,8 @@ export function startApp(root: HTMLElement): void {
     if (getComputedStyle(panel).position !== 'absolute') return;
     const inset = 8;
     panel.style.right = 'auto';
-    panel.style.left = `${Math.max(inset, Math.min(left, editorEl.clientWidth - panel.offsetWidth - inset))}px`;
-    panel.style.top = `${Math.max(inset, Math.min(top, editorEl.clientHeight - panel.offsetHeight - inset))}px`;
+    panel.style.left = `${Math.max(inset, Math.min(left, Math.max(inset, editorEl.clientWidth - panel.offsetWidth - inset)))}px`;
+    panel.style.top = `${Math.max(inset, Math.min(top, Math.max(inset, editorEl.clientHeight - panel.offsetHeight - inset)))}px`;
   }
   function makePanelDraggable(panel: HTMLElement, handle: HTMLElement, onStop: () => void): void {
     handle.addEventListener('pointerdown', (event) => {
@@ -368,6 +383,22 @@ export function startApp(root: HTMLElement): void {
   });
   setPanelPosition(layersPanel, panelLayout.layers);
   const layersToggle = root.querySelector<HTMLButtonElement>('[data-action="toggle-layers-panel"]')!;
+  const optionsToggle = root.querySelector<HTMLButtonElement>('[data-action="toggle-options-panel"]')!;
+  // A hidden panel reports offsetLeft 0, so clamping it would overwrite its saved position.
+  const clampMovedPanels = () => {
+    if (!optionsbar.hidden && optionsbar.dataset.moved === 'true') clampFloatingPanel(optionsbar);
+    if (!layersPanel.hidden && layersPanel.dataset.moved === 'true') clampFloatingPanel(layersPanel);
+  };
+  const setOptionsCollapsed = (collapsed: boolean) => {
+    optionsbar.dataset.collapsed = String(collapsed);
+    optionsToggle.setAttribute('aria-expanded', String(!collapsed));
+    const label = collapsed ? 'Expand Tool options panel' : 'Collapse Tool options panel';
+    optionsToggle.setAttribute('aria-label', label);
+    optionsToggle.title = label;
+    optionsToggle.innerHTML = icon(collapsed ? 'chevron-down' : 'chevron-up', 15);
+    if (!collapsed && compactPanels.matches) setLayersCollapsed(true);
+    queueMicrotask(clampMovedPanels);
+  };
   const setLayersCollapsed = (collapsed: boolean) => {
     layersPanel.dataset.collapsed = String(collapsed);
     layersToggle.setAttribute('aria-expanded', String(!collapsed));
@@ -375,8 +406,16 @@ export function startApp(root: HTMLElement): void {
     layersToggle.setAttribute('aria-label', label);
     layersToggle.title = label;
     layersToggle.innerHTML = icon(collapsed ? 'chevron-down' : 'chevron-up', 15);
+    if (!collapsed && compactPanels.matches) setOptionsCollapsed(true);
+    queueMicrotask(clampMovedPanels);
   };
   setLayersCollapsed(matchMedia('(max-width: 760px), (pointer: coarse)').matches);
+  setOptionsCollapsed(false);
+  optionsToggle.addEventListener('click', () => setOptionsCollapsed(optionsbar.dataset.collapsed !== 'true'));
+  // The panels sit beside the stage, so this only fires for touches on uncovered canvas.
+  stageHost.addEventListener('pointerdown', () => {
+    if (compactPanels.matches && optionsbar.dataset.collapsed !== 'true') setOptionsCollapsed(true);
+  });
   layersToggle.addEventListener('click', () => setLayersCollapsed(layersPanel.dataset.collapsed !== 'true'));
   root.querySelector<HTMLButtonElement>('[data-action="reset-settings"]')!.addEventListener('click', () => {
     if (!window.confirm('Reset panel positions, colors, and editor preferences to app defaults? Your artwork will not be changed.')) return;
@@ -393,6 +432,7 @@ export function startApp(root: HTMLElement): void {
     setPanelPosition(layersPanel);
     optionsPanelContext = '';
     setLayersCollapsed(matchMedia('(max-width: 760px), (pointer: coarse)').matches);
+    setOptionsCollapsed(false);
     const defaults = createScene();
     const activeTool = store.get().activeTool;
     const activeStyle = toolStyles.get(activeTool) ?? (activeTool === 'symbol'
@@ -432,7 +472,7 @@ export function startApp(root: HTMLElement): void {
     });
     statusEl.textContent = 'Settings reset to defaults';
   });
-  window.addEventListener('resize', () => { clampFloatingPanel(optionsbar); clampFloatingPanel(layersPanel); });
+  window.addEventListener('resize', clampMovedPanels);
   const optionMap: Record<string, string[]> = {
     select: [], rect: ['color', 'stroke-toggle', 'fill', 'width', 'opacity', 'line-join'], ellipse: ['color', 'stroke-toggle', 'fill', 'width', 'opacity'],
     line: ['color', 'width', 'opacity', 'line-cap'], arrow: ['color', 'width', 'opacity', 'line-cap', 'arrowheads'], pen: ['color', 'width', 'opacity', 'line-cap'],
@@ -552,15 +592,15 @@ export function startApp(root: HTMLElement): void {
       optionsPanelContext = context;
       setPanelPosition(optionsbar, panelLayout.tools[context]);
       optionsbar.scrollLeft = 0;
+      optionsbar.scrollTop = 0;
     }
-    if (hasOptions && activeButton && getComputedStyle(optionsbar).position === 'absolute' && optionsbar.dataset.moved !== 'true') {
+    if (hasOptions && activeButton && !mobileOptions.matches && getComputedStyle(optionsbar).position === 'absolute' && optionsbar.dataset.moved !== 'true') {
       const button = activeButton.getBoundingClientRect();
       const editorBox = editorEl.getBoundingClientRect();
       optionsbar.style.top = `${Math.max(8, Math.min(button.top - editorBox.top, editorBox.height - optionsbar.offsetHeight - 8))}px`;
       optionsbar.style.left = '8px';
     }
-    if (hasOptions && optionsbar.dataset.moved === 'true') queueMicrotask(() => clampFloatingPanel(optionsbar));
-    if (!layersPanel.hidden && layersPanel.dataset.moved === 'true') queueMicrotask(() => clampFloatingPanel(layersPanel));
+    if (hasOptions || !layersPanel.hidden) queueMicrotask(clampMovedPanels);
     stageHost.dataset.activeTool = scene.activeTool;
     const hasImage = Boolean(scene.image);
     for (const button of toolButtons) { button.setAttribute('aria-pressed', String(button.dataset.tool === scene.activeTool)); button.disabled = !hasImage; }
@@ -572,7 +612,7 @@ export function startApp(root: HTMLElement): void {
     overflowButton.setAttribute('aria-pressed', String(scene.showOverflow));
     overflowButton.querySelector('span')!.textContent = scene.showOverflow ? 'On' : 'Off';
     const hasDeletableSelection = layerSelection.some((id) => !scene.objects.find((object) => object.id === id)?.locked);
-    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="delete"]')) button.disabled = !hasDeletableSelection;
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="delete"], [data-action="delete-selected-layers"]')) button.disabled = !hasDeletableSelection;
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="duplicate"]')) button.disabled = layerSelection.length === 0;
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="send-back"], [data-action="bring-front"], [data-action="send-backward"], [data-action="bring-forward"]')) button.disabled = !selected;
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="undo"]')) button.disabled = !canvasHost.canUndo();

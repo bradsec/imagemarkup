@@ -140,6 +140,7 @@ describe('renderShell', () => {
     expect([...root.querySelectorAll<HTMLOptionElement>('[data-style="arrow-start"] option')].map((option) => option.value)).toEqual(['none', 'open', 'triangle', 'stealth', 'circle']);
     expect([...root.querySelectorAll<HTMLOptionElement>('[data-style="arrow-end"] option')].map((option) => option.value)).toEqual(['none', 'open', 'triangle', 'stealth', 'circle']);
     expect(root.querySelector('[data-options-drag-handle]')).toBeTruthy();
+    expect(root.querySelector('[data-options-drag-handle] [data-action="toggle-options-panel"]')).toBeTruthy();
     expect(root.querySelector('[data-layers-drag-handle]')).toBeTruthy();
     expect(root.querySelector('[data-action="toggle-layers-panel"]')).toBeTruthy();
     expect(root.querySelector('.optionsbar .layers-panel')).toBeNull();

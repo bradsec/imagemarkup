@@ -151,6 +151,7 @@ export function renderShell(root: HTMLElement): Shell {
             <div class="options-heading" data-options-drag-handle>
               <strong id="active-tool-name">Move</strong>
               <span class="drag-grip" aria-hidden="true"></span>
+              <button class="compact-button" type="button" data-action="toggle-options-panel" aria-label="Collapse Tool options panel" aria-expanded="true" title="Collapse Tool options panel">${icon('chevron-up', 15)}</button>
             </div>
             <div class="tool-options-preview" aria-hidden="true" hidden><canvas></canvas></div>
             <span class="option-hint" data-options="select">Select an object to edit its properties</span>

@@ -35,7 +35,6 @@
   --r: 8px;
   --shadow-3: 0 16px 48px rgb(0 0 0 / 50%);
   --header-height: 50px;
-  --options-height: 44px;
 }
 
 * { box-sizing: border-box; }
@@ -281,6 +280,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .options-heading { display: flex; min-height: 24px; align-items: center; justify-content: space-between; margin: -4px -4px 1px; padding: 4px; cursor: grab; touch-action: none; }
 .options-heading:active { cursor: grabbing; }
 .options-heading strong { color: var(--text); font-size: 13px; font-weight: 650; }
+.options-heading [data-action="toggle-options-panel"] { display: none; }
 .drag-grip { width: 18px; height: 14px; opacity: .7; background-image: radial-gradient(circle, var(--text-faint) 1px, transparent 1.5px); background-size: 5px 5px; }
 .optionsbar label { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
 .optionsbar label > span:first-child, .optionsbar > .option-hint { flex: 0 0 auto; }
@@ -317,7 +317,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   content: "";
 }
 .paint-toggle[aria-pressed="false"] { color: var(--text-faint); }
-.option-actions > button { flex: 1 1 0; }
+.option-actions > button { flex: 1 1 0; min-width: 0; }
 .visual-options { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .visual-options legend { margin-bottom: 4px; padding: 0; color: var(--text-dim); font-size: 12px; }
 .choice-row, .choice-grid { display: grid; gap: 4px; }
@@ -631,7 +631,10 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
   .icon-button { min-width: 44px; }
   .selection-dimensions input { min-height: 44px; }
   .optionsbar button, .optionsbar select, .optionsbar input:not([type="range"]) { min-height: 40px; }
-  .optionsbar .color-presets button { width: 40px; min-width: 40px; }
+  /* Six compact columns keep each palette to two rows in the 236px panel; 30px stays above the 24px target minimum. */
+  .optionsbar .color-presets { grid-template-columns: repeat(6, 30px); }
+  .optionsbar .color-presets button { width: 30px; min-width: 30px; height: 30px; min-height: 30px; }
+  .optionsbar .stroke-presets button { padding-inline: 3px; }
   .dialog-actions button, .transform-grid button { min-height: 44px; }
 }
 
@@ -640,7 +643,7 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 }
 
 @media (max-width: 760px) {
-  :root { --header-height: calc(52px + env(safe-area-inset-top)); --options-height: 56px; }
+  :root { --header-height: calc(52px + env(safe-area-inset-top)); }
   .app-header {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
@@ -679,52 +682,20 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
   .toolrail button { flex: 0 0 44px; width: 44px; height: 44px; }
   .tool-list > button { scroll-snap-align: start; }
   .tool-colors { flex: 0 0 92px; width: 52px; height: 92px; margin: auto -3px 0; padding: 6px 0 0; border-top: 1px solid var(--border); border-left: 0; }
-  .selection-dimensions { position: static; flex: 0 0 auto; transform: none; }
-  .selection-dimensions input { width: 64px; }
+  .selection-dimensions { position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto 44px; gap: 4px; transform: none; }
+  .selection-dimensions input { width: 100%; }
   .editor { min-height: 0; }
-  .layers-panel { top: calc(var(--options-height) + 8px); right: 8px; width: min(260px, calc(100% - 16px)); height: min(52dvh, 420px); max-height: calc(100% - var(--options-height) - 16px); resize: none; }
+  .layers-panel { top: auto; right: 8px; bottom: 8px; width: min(260px, calc(100% - 16px)); height: min(52dvh, calc(100% - 96px)); min-height: 0; max-height: calc(100% - 96px); resize: none; }
   .layers-panel[data-collapsed="true"] { width: 190px; }
   .optionsbar {
-    position: static;
-    flex: 0 0 var(--options-height);
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    width: auto;
-    height: var(--options-height);
-    max-width: none;
-    max-height: none;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
-    border: 0;
-    border-bottom: 1px solid #101216;
-    border-radius: 0;
-    box-shadow: none;
-    background: #26292e;
+    top: 8px;
+    left: 8px;
+    width: 236px;
+    max-width: calc(100% - 16px);
+    max-height: min(52dvh, calc(100% - 72px));
   }
-  .tool-options-preview { width: 42px; height: 42px; }
-  .options-heading { min-width: max-content; margin: 0; padding: 0; cursor: default; }
-  .drag-grip { display: none; }
-  .options-heading strong { min-width: auto; white-space: nowrap; }
-  .optionsbar label { justify-content: flex-start; white-space: nowrap; }
-  .optionsbar > [data-options], .optionsbar label[data-options] { flex-shrink: 0; }
-  .optionsbar input[type="number"] { flex: 0 0 68px; }
-  .optionsbar input[type="range"] { flex: 0 0 auto; width: 96px; }
-  .optionsbar .color-presets { display: flex; flex: 0 0 auto; width: max-content; }
-  .option-spacer { display: none; }
-  .visual-options { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; min-width: max-content; }
-  .visual-options legend { flex: 0 0 auto; margin: 0; white-space: nowrap; }
-  .choice-row, .choice-grid { display: flex; flex: 0 0 auto; width: max-content; }
-  .editor:has(.symbol-options:not([hidden])) { --options-height: 224px; }
-  .optionsbar:has(.symbol-options:not([hidden])) { flex-wrap: wrap; align-content: flex-start; overflow-x: hidden; overflow-y: auto; }
-  .symbol-options { display: block; flex: 1 0 100%; min-width: 0; max-width: none; }
-  .symbol-options [data-symbol-search] { display: block; }
-  .symbol-options .symbol-groups { display: block; max-height: 108px; }
-  .symbol-groups .choice-grid { display: grid; grid-template-columns: repeat(5, 1fr); width: auto; }
-  .choice-row button { flex: 0 0 40px; width: 40px; }
-  .counter-sequence-control { flex: 0 0 auto; min-width: max-content; }
-  .counter-sequence-control label { flex: 0 0 auto; }
+  .layers-panel[data-collapsed="true"] { padding-top: 0; padding-bottom: 0; }
+  .layers-panel[data-collapsed="true"] .layers-heading { min-height: 44px; }
   .statusbar { flex-basis: 44px; min-height: 44px; gap: 10px; padding-bottom: env(safe-area-inset-bottom); }
   .statusbar .status-tip { display: none; }
   .statusbar .repo-link svg { display: none; }
@@ -739,8 +710,12 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
   .load-error { top: 8px; right: 8px; bottom: auto; max-width: calc(100% - 16px); }
 }
 
-@media (max-width: 760px) and (any-pointer: coarse) {
-  .options-heading::after { content: "Swipe for more ›" / ""; margin-left: 6px; color: var(--text-faint); font-size: 11px; white-space: nowrap; }
+/* Phones in either orientation; keep in step with compactPanels in controller.ts. */
+@media (max-width: 760px), (pointer: coarse) and (max-height: 500px) {
+  .options-heading { position: sticky; top: 0; z-index: 1; min-height: 44px; background: var(--surface); }
+  .options-heading [data-action="toggle-options-panel"] { display: inline-flex; width: 44px; min-height: 44px; align-items: center; }
+  .optionsbar[data-collapsed="true"] { overflow: hidden; }
+  .optionsbar[data-collapsed="true"] > :not(.options-heading) { display: none !important; }
 }
 
 @media (forced-colors: active) {

@@ -4,6 +4,12 @@ import { createCanvas } from '@napi-rs/canvas';
 
 const fixture = createCanvas(320, 240).toBuffer('image/png');
 
+// On phones the expanded options panel covers the canvas center; dismiss it as a user would.
+async function collapseOptionsIfOpen(page: Page): Promise<void> {
+  const toggle = page.getByRole('button', { name: 'Collapse Tool options panel' });
+  if (await toggle.isVisible()) await toggle.click();
+}
+
 async function loadImage(page: Page): Promise<void> {
   await page.goto('/');
   await page.locator('.stage-host input[type="file"]').setInputFiles({
@@ -171,6 +177,7 @@ test('shows focus and selected controls in forced colors', async ({ page }) => {
 test('shows a focus ring on the inline text editor', async ({ page }) => {
   await loadImage(page);
   await page.locator('[data-tool="text"]').click();
+  await collapseOptionsIfOpen(page);
   const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
@@ -182,6 +189,7 @@ test('shows a focus ring on the inline text editor', async ({ page }) => {
 test('moves a selected annotation with focused arrow keys', async ({ page }) => {
   await loadImage(page);
   await page.locator('[data-tool="rect"]').click();
+  await collapseOptionsIfOpen(page);
   const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   await page.mouse.move(canvas.x + canvas.width / 2 - 30, canvas.y + canvas.height / 2 - 20);
@@ -201,6 +209,8 @@ test('bounds the expanded Layers palette on a narrow screen', async ({ page }) =
   const tools = await page.locator('.toolrail').boundingBox();
   expect(panel?.width).toBeLessThanOrEqual(260);
   expect(panel?.height).toBeLessThanOrEqual(704 * 0.52 + 1);
+  const editor = await page.locator('.editor').boundingBox();
+  expect(panel?.height).toBeLessThanOrEqual((editor?.height ?? 0) - 96 + 1);
   expect(panel?.x).toBeGreaterThanOrEqual(0);
   const verticalTools = await page.locator('.toolrail').evaluate((element) => getComputedStyle(element).flexDirection === 'column');
   if (verticalTools) {
@@ -209,4 +219,29 @@ test('bounds the expanded Layers palette on a narrow screen', async ({ page }) =
   } else {
     expect((panel?.y ?? 0) + (panel?.height ?? 0)).toBeLessThanOrEqual(tools?.y ?? 704);
   }
+});
+
+test('keeps the mobile options toggle keyboard accessible', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await loadImage(page);
+  await page.locator('[data-tool="pen"]').click();
+  const toggle = page.getByRole('button', { name: 'Collapse Tool options panel' });
+  const box = await toggle.boundingBox();
+  expect(box?.width).toBeGreaterThanOrEqual(44);
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+  await toggle.focus();
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press('Tab');
+  // Tab moves into the first option control. WebKit skips color inputs when tabbing, so check
+  // for any control after the heading rather than the stroke color input itself.
+  expect(await page.evaluate(() => {
+    const active = document.activeElement!;
+    return Boolean(active.closest('.optionsbar')) && !active.closest('.options-heading');
+  })).toBe(true);
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Expand Tool options panel' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.optionsbar [data-style="color"]')).toBeHidden();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('.optionsbar [data-style="color"]')).not.toBeFocused();
 });

@@ -50,6 +50,35 @@ async function checkOverlay(page: Page, selector: string): Promise<void> {
   }
 }
 
+for (const viewport of [...viewports, { width: 320, height: 256 }]) {
+  test(`keeps the tool palette inside the editor at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout');
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'sample.png', mimeType: 'image/png', buffer: image });
+    await page.locator('.toolrail [data-tool="pen"]').click();
+    const bounds = await page.evaluate(() => {
+      const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+      const panel = rect('.optionsbar');
+      const editor = rect('.editor');
+      const rail = rect('.toolrail');
+      const header = rect('.app-header');
+      const status = rect('.statusbar');
+      return { panel: { left: panel.left, right: panel.right, top: panel.top, bottom: panel.bottom },
+        editor: { left: editor.left, right: editor.right, top: editor.top, bottom: editor.bottom },
+        railRight: rail.right, headerBottom: header.bottom, statusTop: status.top,
+        pageWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth };
+    });
+    expect(bounds.panel.left).toBeGreaterThanOrEqual(Math.max(bounds.editor.left, bounds.railRight));
+    expect(bounds.panel.right).toBeLessThanOrEqual(bounds.editor.right);
+    expect(bounds.panel.top).toBeGreaterThanOrEqual(Math.max(bounds.editor.top, bounds.headerBottom));
+    expect(bounds.panel.bottom).toBeLessThanOrEqual(Math.min(bounds.editor.bottom, bounds.statusTop));
+    expect(bounds.pageWidth).toBe(viewport.width);
+    expect(bounds.bodyWidth).toBe(viewport.width);
+  });
+
+}
+
 for (const viewport of viewports) {
   test(`keeps every dialog and menu within ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout and touch font sizes');
@@ -82,6 +111,8 @@ for (const viewport of viewports) {
     }
 
     await page.locator('.toolrail [data-tool="rect"]').click();
+    // The expanded options panel covers the canvas center on phones; dismiss it as a user would.
+    await page.getByRole('button', { name: 'Collapse Tool options panel' }).click();
     const canvas = (await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox())!;
     await page.mouse.move(canvas.x + canvas.width / 2 - 20, canvas.y + canvas.height / 2 - 20);
     await page.mouse.down();
@@ -100,5 +131,24 @@ for (const viewport of viewports) {
     });
     await expect(page.locator('#layer-context-menu')).toBeVisible();
     await checkOverlay(page, '#layer-context-menu');
+  });
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  test(`fits every tool's options without sideways scroll or overlapping swatches at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout');
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'sample.png', mimeType: 'image/png', buffer: image });
+    for (const tool of ['pen', 'rect', 'symbol', 'highlighter', 'text', 'counter']) {
+      await page.locator(`.toolrail [data-tool="${tool}"]`).click();
+      await expect(page.locator('[data-action="toggle-options-panel"]'), tool).toBeVisible();
+      const layout = await page.locator('.optionsbar').evaluate((bar) => {
+        const swatches = [...bar.querySelectorAll<HTMLElement>('.color-presets button')].filter((button) => button.checkVisibility()).map((button) => button.getBoundingClientRect());
+        const overlaps = swatches.some((a, index) => swatches.slice(index + 1).some((b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
+        return { sideways: bar.scrollWidth > bar.clientWidth + 1, overlaps };
+      });
+      expect(layout, tool).toEqual({ sideways: false, overlaps: false });
+    }
   });
 }

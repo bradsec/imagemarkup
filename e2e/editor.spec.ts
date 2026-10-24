@@ -1,7 +1,57 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test as base, type Locator, type Page } from '@playwright/test';
 import { createCanvas, loadImage as loadCanvasImage } from '@napi-rs/canvas';
 import { readFile } from 'node:fs/promises';
 import { annotationBounds } from '../src/core/annotations';
+
+// On phones the tool options panel floats over the canvas and collapses when a canvas gesture
+// starts. Shared tests act like a user: collapse the panel before pressing under it, and reopen
+// it after a gesture that collapsed it. The 'mobile layout' tests cover the panel itself.
+const test = base.extend({
+  page: async ({ page }, use, testInfo) => {
+    if (testInfo.project.name === 'webkit-iphone' && !testInfo.titlePath.includes('mobile layout')) {
+      let last = { x: 0, y: 0 };
+      let reopen = false;
+      const { move, down, up, click } = page.mouse;
+      const panelState = () => page.evaluate(({ x, y }) => {
+        const panel = document.querySelector<HTMLElement>('.optionsbar');
+        const visible = Boolean(panel?.checkVisibility());
+        if (!panel || !visible || panel.dataset.collapsed === 'true') return { visible, expanded: false, covered: false };
+        const box = panel.getBoundingClientRect();
+        const covered = x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+        return { visible, expanded: true, covered };
+      }, last);
+      const toggle = async () => {
+        await page.locator('[data-action="toggle-options-panel"]').click();
+        // Clicking the toggle moved the pointer; return it to where the test left it.
+        await move.call(page.mouse, last.x, last.y);
+      };
+      const beforePress = async () => {
+        const { visible, expanded, covered } = await panelState();
+        // A visibly collapsed panel was collapsed on purpose by the test; leave it.
+        reopen = expanded || !visible;
+        if (covered) await toggle();
+      };
+      const afterRelease = async () => {
+        if (!reopen) return;
+        reopen = false;
+        const state = await panelState();
+        if (state.visible && !state.expanded) await toggle();
+      };
+      page.mouse.move = async (x, y, options) => { last = { x, y }; return move.call(page.mouse, x, y, options); };
+      page.mouse.down = async (options) => { await beforePress(); return down.call(page.mouse, options); };
+      page.mouse.up = async (options) => { await up.call(page.mouse, options); await afterRelease(); };
+      page.mouse.click = async (x, y, options) => {
+        last = { x, y };
+        await beforePress();
+        await click.call(page.mouse, x, y, options);
+        // Reopening after a right-click would dismiss the context menu it opened.
+        if (options?.button === 'right') reopen = false;
+        await afterRelease();
+      };
+    }
+    await use(page);
+  },
+});
 
 const fixture = createCanvas(320, 240);
 const fixtureContext = fixture.getContext('2d');
@@ -162,7 +212,7 @@ test('pen options preview stays in the panel and changes with width', async ({ p
   await expect(tile).toBeHidden();
 });
 
-test('pen options preview and controls fit the mobile bar at 320px', async ({ page }) => {
+test('pen options preview and controls fit the mobile palette at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await loadImage(page);
   await page.locator('.toolrail [data-tool="pen"]').click();
@@ -171,26 +221,33 @@ test('pen options preview and controls fit the mobile bar at 320px', async ({ pa
   await expect(tile).toBeVisible();
   await expect(color).toBeVisible();
   const tileBounds = await tile.boundingBox();
-  const colorBounds = await color.boundingBox();
   const panelBounds = await page.locator('.optionsbar').boundingBox();
-  expect(tileBounds && colorBounds && panelBounds).toBeTruthy();
-  for (const bounds of [tileBounds!, colorBounds!]) {
-    expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
-    expect(bounds.y).toBeGreaterThanOrEqual(panelBounds!.y);
-    expect(bounds.y + bounds.height).toBeLessThanOrEqual(panelBounds!.y + panelBounds!.height);
-  }
-  expect(tileBounds!.x + tileBounds!.width).toBeLessThanOrEqual(colorBounds!.x);
+  const editorBounds = await page.locator('.editor').boundingBox();
+  expect(tileBounds && panelBounds && editorBounds).toBeTruthy();
+  expect(panelBounds!.x).toBeGreaterThanOrEqual(editorBounds!.x);
+  expect(panelBounds!.x + panelBounds!.width).toBeLessThanOrEqual(editorBounds!.x + editorBounds!.width);
+  expect(tileBounds!.x).toBeGreaterThanOrEqual(panelBounds!.x);
+  expect(tileBounds!.x + tileBounds!.width).toBeLessThanOrEqual(panelBounds!.x + panelBounds!.width);
+  await color.scrollIntoViewIfNeeded();
+  const colorBounds = await color.boundingBox();
+  expect(colorBounds!.x).toBeGreaterThanOrEqual(panelBounds!.x);
+  expect(colorBounds!.x + colorBounds!.width).toBeLessThanOrEqual(panelBounds!.x + panelBounds!.width);
+  await page.locator('.optionsbar [data-choice-for="line-cap"] button:last-child').scrollIntoViewIfNeeded();
+  await expect(page.locator('.optionsbar [data-choice-for="line-cap"] button:last-child')).toBeInViewport();
 });
 
 test('iPhone controls stay readable and reachable for every tool', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout');
   await loadImage(page);
-  for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 844, height: 390 }, { width: 667, height: 375 }]) {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 844, height: 390 }, { width: 667, height: 375 }, { width: 320, height: 256 }]) {
     await page.setViewportSize(viewport);
     for (const tool of await page.locator('.toolrail [data-tool]').all()) {
       await tool.scrollIntoViewIfNeeded();
       await tool.click();
+      const options = page.locator('.optionsbar');
+      if (await options.isHidden()) continue;
+      if (await options.getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+      expect(await options.evaluate((bar) => bar.scrollWidth <= bar.clientWidth + 1)).toBe(true);
       // One in-page pass: the options bar re-renders on store updates, which detaches per-control locators.
       const unreachable = await page.locator('.optionsbar').evaluate((bar) => [...bar.querySelectorAll<HTMLElement>('button, input, select, textarea')]
         .filter((control) => control.checkVisibility() && !(control as HTMLButtonElement).disabled)
@@ -216,12 +273,13 @@ test('iPhone controls stay readable and reachable for every tool', async ({ page
         expect(await field.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
       }
     }
+    if (viewport.height === 256) continue;
     await page.locator('#stage').focus();
     for (let step = 0; step < 6; step++) await page.keyboard.press('-');
     await page.locator('.toolrail [data-tool="text"]').click();
     const stage = await page.locator('#stage').boundingBox();
     if (!stage) throw new Error('Stage is not visible');
-    await page.locator('#stage').click({ position: { x: stage.width / 2, y: stage.height / 2 } });
+    await page.locator('#stage').click({ position: { x: stage.width / 2, y: stage.height - 60 } });
     const editor = page.locator('.text-editor');
     await expect(editor).toBeVisible();
     expect(await editor.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
@@ -625,7 +683,8 @@ test('edits selected object dimensions using preferred units and an aspect-ratio
 test('supports visual line caps, persistent rail colors, and draggable options', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="line"]').click();
-  if (await page.locator('.optionsbar').evaluate((element) => getComputedStyle(element).position === 'absolute')) {
+  // Desktop floating panel; phone dragging is covered in 'mobile layout'.
+  if (!(await page.evaluate(() => matchMedia('(max-width: 760px)').matches))) {
     const before = await page.locator('.optionsbar').boundingBox();
     const handle = page.locator('[data-options-drag-handle]');
     await handle.dragTo(page.locator('.stage-host'), { targetPosition: { x: 900, y: 80 } });
@@ -703,6 +762,18 @@ test('draws a constrained ellipse from its center with Alt or Option and Shift',
   expect(ellipse.rect.w).toBeCloseTo(ellipse.rect.h, 5);
   expect(ellipse.rect.x + ellipse.rect.w / 2).toBeCloseTo(160, 5);
   expect(ellipse.rect.y + ellipse.rect.h / 2).toBeCloseTo(120, 5);
+});
+
+test('enables the Layers delete button only while a deletable layer is selected', async ({ page }) => {
+  await loadImage(page);
+  const trash = page.locator('[data-action="delete-selected-layers"]');
+  await expect(trash).toBeDisabled();
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await drag(page, [-60, -40], [60, 40]);
+  await expect(trash).toBeEnabled();
+  await page.locator('#stage').focus();
+  await page.keyboard.press('Escape');
+  await expect(trash).toBeDisabled();
 });
 
 test('keeps Layers separate, draggable, reorderable, and lock-aware', async ({ page }) => {
@@ -1009,6 +1080,8 @@ test('symbol fill swatches apply to a multi-selection', async ({ page }) => {
   const rows = page.locator('[data-layer-type="symbol"] [data-action="select-layer"]');
   await rows.first().click();
   await rows.last().click({ modifiers: ['Control'] });
+  // On phones only one palette stays open; open the options after choosing layers.
+  if (await page.locator('.optionsbar').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
   await page.locator('[data-color-presets="fill"] [data-color="#00b050"]').click();
   expect((await saveScene(page)).objects.map((object: any) => object.style.fill)).toEqual(['#00b050', '#00b050']);
 });
@@ -1025,7 +1098,7 @@ test('symbol search and arrow keys reach choices', async ({ page }) => {
   await expect(page.getByRole('group', { name: 'Marks' })).toBeVisible();
 });
 
-test('symbol picker fits the mobile options bar at 320px', async ({ page }) => {
+test('symbol picker fits the mobile options palette at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await loadImage(page);
   await page.locator('.toolrail [data-tool="symbol"]').click();
@@ -1039,7 +1112,10 @@ test('symbol picker fits the mobile options bar at 320px', async ({ page }) => {
   expect(bounds && options && stage).toBeTruthy();
   expect(bounds!.x).toBeGreaterThanOrEqual(options!.x);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(options!.x + options!.width);
-  expect(options!.y + options!.height).toBeLessThanOrEqual(stage!.y);
+  expect(options!.y).toBeGreaterThanOrEqual(stage!.y);
+  expect(options!.y + options!.height).toBeLessThanOrEqual(stage!.y + stage!.height);
+  await page.getByRole('button', { name: 'Target reticle symbol' }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: 'Target reticle symbol' })).toBeInViewport();
 });
 
 test('persists uploaded fonts for later sessions', async ({ page }) => {
@@ -1083,6 +1159,8 @@ test('edits one existing counter value without changing the sequence or its neig
   const layers = page.locator('.layers-panel');
   if (await layers.getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Layers panel' }).click();
   await page.locator('[data-layer-id]').last().locator('[data-action="select-layer"]').click();
+  // On phones only one palette stays open; open the options after choosing a layer.
+  if (await page.locator('.optionsbar').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
   await expect(page.locator('[data-style="counter-value"]')).toHaveValue('7');
   await page.locator('[data-style="counter-value"]').fill('42');
   await page.locator('[data-style="counter-value"]').blur();
@@ -1110,7 +1188,7 @@ test('Escape commits inline text and returns to the Move tool', async ({ page })
 
 test('edits existing text at a caret without selecting the whole object', async ({ page }) => {
   await loadImage(page);
-  // Choosing a tool shows the options bar and reflows the stage, so measure the canvas only after it appears.
+  // Measure the canvas after choosing the tool so the editor has its final dimensions.
   await page.locator('.toolrail [data-tool="text"]').click();
   await expect(page.locator('.optionsbar')).toBeVisible();
   let center = await canvasCenter(page);
@@ -1236,7 +1314,7 @@ test('entering crop clears the selection and marquee overlay', async ({ page }) 
   await loadImage(page);
   await page.locator('.toolrail [data-tool="rect"]').click();
   await dragImage(page, [40, 40], [90, 90]);
-  // Capture the reference in crop mode: the crop options bar changes canvas size on mobile.
+  // Capture the reference in crop mode for comparison with the crop result.
   await page.locator('.toolrail [data-tool="crop"]').click();
   const canvas = page.locator('.stage-host canvas:not(.tool-preview)');
   const cleanPixels = await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
@@ -1604,7 +1682,8 @@ test('remembers Options positions per tool and the Layers position', async ({ pa
   await page.locator('.toolrail [data-tool="rect"]').click();
   const options = page.locator('.optionsbar');
   const layers = page.locator('.layers-panel');
-  if (await options.evaluate((element) => getComputedStyle(element).position) !== 'absolute') return;
+  // Desktop panel memory; phone dragging and clamping are covered in 'mobile layout'.
+  if (await page.evaluate(() => matchMedia('(max-width: 760px)').matches)) return;
 
   const movePanel = async (handle: Locator, dx: number, dy: number) => {
     const box = await handle.boundingBox();
@@ -1711,6 +1790,181 @@ test('pinch zoom does not leave a partial drawing object', async ({ page }) => {
 test.describe('mobile layout', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test('opens tool options on tool choice and collapses them when drawing starts on the canvas', async ({ page }) => {
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="pen"]').click();
+    const options = page.locator('.optionsbar');
+    const toggle = page.locator('[data-action="toggle-options-panel"]');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('button', { name: 'Expand Layers panel' })).toBeVisible();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-label', 'Expand Tool options panel');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(options.locator('.options-heading')).toBeVisible();
+    await expect(options.locator('[data-style="width"]')).toBeHidden();
+
+    // Choosing a tool shows its options again.
+    await page.locator('.toolrail [data-tool="rect"]').click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(options.locator('[data-style="width"]')).toBeVisible();
+
+    // A gesture on uncovered canvas collapses the panel and still draws.
+    const panel = (await options.boundingBox())!;
+    const stage = (await page.locator('#stage').boundingBox())!;
+    const x = panel.x + panel.width + (stage.x + stage.width - panel.x - panel.width) / 2;
+    const y = stage.y + stage.height * 0.6;
+    await page.mouse.move(x - 20, y - 20);
+    await page.mouse.down();
+    await page.mouse.move(x + 20, y + 20, { steps: 4 });
+    await page.mouse.up();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect((await saveScene(page)).objects).toHaveLength(1);
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByText('File', { exact: true }).click();
+    await page.locator('details[open]').getByRole('button', { name: 'Reset settings' }).click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('opening one mobile palette closes the other', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 256 });
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="pen"]').click();
+    const options = page.locator('.optionsbar');
+    const layers = page.locator('.layers-panel');
+    const separated = async () => {
+      const a = (await options.boundingBox())!;
+      const b = (await layers.boundingBox())!;
+      expect(a.y + a.height).toBeLessThanOrEqual(b.y);
+    };
+    await separated();
+    await page.getByRole('button', { name: 'Expand Layers panel' }).click();
+    await expect(page.getByRole('button', { name: 'Expand Tool options panel' })).toBeVisible();
+    await separated();
+    await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+    await expect(page.getByRole('button', { name: 'Expand Layers panel' })).toBeVisible();
+    await separated();
+  });
+
+  test('drags and clamps the tool palette without drawing on it', async ({ page }) => {
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="pen"]').click();
+    const panel = page.locator('.optionsbar');
+    const heading = panel.locator('.options-heading');
+    const start = (await heading.boundingBox())!;
+    const before = (await panel.boundingBox())!;
+    await page.mouse.move(start.x + 20, start.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 55, start.y + 65, { steps: 4 });
+    await page.mouse.up();
+    const moved = (await panel.boundingBox())!;
+    expect(moved.x).toBeGreaterThan(before.x);
+    expect(moved.y).toBeGreaterThan(before.y);
+    expect((await saveScene(page)).objects).toHaveLength(0);
+    await panel.locator('.tool-options-preview').tap();
+    expect((await saveScene(page)).objects).toHaveLength(0);
+    const toggle = page.getByRole('button', { name: 'Collapse Tool options panel' });
+    await toggle.tap();
+    expect((await panel.boundingBox())!.x).toBeCloseTo(moved.x, 0);
+    await drag(page, [-20, -20], [20, 20], 4);
+    expect((await saveScene(page)).objects).toHaveLength(1);
+    await page.setViewportSize({ width: 320, height: 256 });
+    const editor = (await page.locator('.editor').boundingBox())!;
+    const clamped = (await panel.boundingBox())!;
+    expect(clamped.x).toBeGreaterThanOrEqual(editor.x + 8);
+    expect(clamped.y).toBeGreaterThanOrEqual(editor.y + 8);
+    expect(clamped.x + clamped.width).toBeLessThanOrEqual(editor.x + editor.width - 8 + 1);
+    expect(clamped.y + clamped.height).toBeLessThanOrEqual(editor.y + editor.height - 8 + 1);
+  });
+
+  test('clamps saved palette positions after tool content appears', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 256 });
+    await page.addInitScript(() => localStorage.setItem('imagemarkup.panel-layout', JSON.stringify({ tools: { symbol: { left: 5000, top: 5000 } }, layers: { left: 5000, top: 5000 } })));
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="symbol"]').click();
+    const editor = (await page.locator('.editor').boundingBox())!;
+    for (const selector of ['.optionsbar', '.layers-panel']) {
+      await expect.poll(async () => {
+        const box = (await page.locator(selector).boundingBox())!;
+        return box.x >= editor.x + 8 && box.y >= editor.y + 8
+          && box.x + box.width <= editor.x + editor.width - 8 + 1
+          && box.y + box.height <= editor.y + editor.height - 8 + 1;
+      }).toBe(true);
+    }
+  });
+
+  test('keeps both heading buttons operable when palettes overlap', async ({ page }) => {
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="pen"]').click();
+    const options = page.locator('.optionsbar');
+    const layers = page.locator('.layers-panel');
+    const heading = (await layers.locator('.layers-heading').boundingBox())!;
+    const target = (await options.boundingBox())!;
+    await page.mouse.move(heading.x + 20, heading.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(heading.x + 20, target.y + 120, { steps: 4 });
+    await page.mouse.up();
+    const layerBox = (await layers.boundingBox())!;
+    expect(layerBox.y).toBeLessThan(target.y + target.height);
+    expect(Number(await layers.evaluate((panel) => getComputedStyle(panel).zIndex))).toBeGreaterThan(Number(await options.evaluate((panel) => getComputedStyle(panel).zIndex)));
+    await page.getByRole('button', { name: 'Collapse Tool options panel' }).click();
+    await page.getByRole('button', { name: 'Expand Layers panel' }).click();
+    await expect(page.getByRole('button', { name: 'Expand Tool options panel' })).toBeVisible();
+  });
+
+  test('keeps selected dimensions when tool options collapse', async ({ page }) => {
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="rect"]').click();
+    await page.getByRole('button', { name: 'Collapse Tool options panel' }).click();
+    await drag(page, [-40, -30], [40, 30]);
+    await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+    const dimensions = page.locator('.optionsbar [data-selection-dimensions]');
+    const width = dimensions.locator('[data-selection-size="width"]');
+    const height = dimensions.locator('[data-selection-size="height"]');
+    await expect(dimensions).toBeVisible();
+    expect(await page.locator('.optionsbar').evaluate((bar) => bar.scrollWidth <= bar.clientWidth + 1)).toBe(true);
+    await dimensions.locator('[data-action="toggle-selection-aspect"]').click();
+    await width.fill('120');
+    await width.press('Tab');
+    await height.fill('70');
+    await height.press('Tab');
+    await page.getByRole('button', { name: 'Collapse Tool options panel' }).click();
+    await expect(dimensions).toBeHidden();
+    await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+    await expect(width).toHaveValue('120');
+    await expect(height).toHaveValue('70');
+    await expect(dimensions.locator('[data-action="toggle-selection-aspect"]')).toHaveAttribute('aria-pressed', 'false');
+    await width.focus();
+    // Wider than 760px the dimensions move to the top bar, keeping focus and value.
+    const anyWidth = page.locator('[data-selection-size="width"]');
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(anyWidth).toBeFocused();
+    await expect(anyWidth).toHaveValue('120');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(width).toBeFocused();
+    await expect(page.locator('[data-selection-dimensions]')).toHaveCount(1);
+    expect((await saveScene(page)).selectedId).toBeTruthy();
+  });
+
+  test('keeps inline text editing open while changing a floating option', async ({ page }) => {
+    await loadImage(page);
+    await page.locator('.toolrail [data-tool="text"]').click();
+    const stage = (await page.locator('#stage').boundingBox())!;
+    await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height - 60);
+    const editor = page.locator('.text-editor');
+    await editor.fill('Palette text');
+    // The tap that opened the editor collapsed the panel; reopening it keeps the editor open.
+    await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
+    await expect(editor).toBeVisible();
+    await page.getByRole('button', { name: 'Bold' }).click();
+    await expect(editor).toBeVisible();
+    // A canvas tap commits the edit; with Text still active it opens a new, empty editor.
+    await page.mouse.click(stage.x + 20, stage.y + stage.height - 30);
+    await expect(editor).toHaveValue('');
+    await page.keyboard.press('Escape');
+    expect((await saveScene(page)).objects).toEqual([expect.objectContaining({ type: 'text', text: 'Palette text' })]);
+  });
+
   test('opens top menus above the workspace and switches menus with touch', async ({ page }) => {
     await page.goto('/');
     const fileSummary = page.locator('details.app-menu').filter({ hasText: /^File/ }).locator('summary');
@@ -1754,6 +2008,7 @@ test.describe('mobile layout', () => {
   test('resizes from a visible handle with touch while the drawing tool stays active', async ({ page }) => {
     await loadImage(page);
     await page.locator('.toolrail [data-tool="rect"]').click();
+    await page.getByRole('button', { name: 'Collapse Tool options panel' }).click();
     await drag(page, [-60, -40], [60, 40]);
     const center = await canvasCenter(page);
 
@@ -1787,11 +2042,11 @@ test.describe('mobile layout', () => {
     await loadImage(page);
     await page.locator('.toolrail [data-tool="rect"]').click();
     const options = page.locator('.optionsbar');
-    await options.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
-    expect(await options.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    await options.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await options.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 
     await page.locator('.toolrail [data-tool="text"]').click();
-    await expect.poll(() => options.evaluate((element) => element.scrollLeft)).toBe(0);
+    await expect.poll(() => options.evaluate((element) => element.scrollTop)).toBe(0);
     await expect(options.locator('[data-style="color"]')).toBeInViewport();
   });
 
@@ -1839,12 +2094,13 @@ test.describe('mobile layout', () => {
     expect(headerBox!.height).toBeLessThanOrEqual(53);
   });
 
-  test('keeps counter options intact and horizontally scrollable', async ({ page }) => {
+  test('keeps counter options intact and vertically scrollable', async ({ page }) => {
     await loadImage(page);
     await page.locator('.toolrail [data-tool="counter"]').click();
 
     const options = page.locator('.optionsbar');
-    await expect.poll(() => options.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    await expect.poll(() => options.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await options.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
     for (const row of [
       options.locator('[data-choice-for="counter-shape"]'),
       options.locator('[data-choice-for="counter-format"]'),
@@ -1853,9 +2109,23 @@ test.describe('mobile layout', () => {
       expect(buttons).toHaveLength(3);
       for (const button of buttons) {
         const box = await button.boundingBox();
-        expect(box?.width).toBeGreaterThanOrEqual(40);
-        expect(box?.height).toBeGreaterThanOrEqual(40);
+        expect(box?.width).toBeGreaterThanOrEqual(30);
+        expect(box?.height).toBeGreaterThanOrEqual(30);
       }
+    }
+    await options.locator('[data-choice-for="counter-format"] button:last-child').scrollIntoViewIfNeeded();
+    await expect(options.locator('[data-choice-for="counter-format"] button:last-child')).toBeInViewport();
+    await options.locator('[data-style="counter-next"]').scrollIntoViewIfNeeded();
+    await expect(options.locator('[data-style="counter-next"]')).toBeInViewport();
+  });
+
+  test('keeps stage bounds fixed across tool changes', async ({ page }) => {
+    await loadImage(page);
+    const stage = page.locator('#stage');
+    const before = await stage.boundingBox();
+    for (const tool of ['pen', 'symbol', 'crop', 'select']) {
+      await page.locator(`.toolrail [data-tool="${tool}"]`).click();
+      expect(await stage.boundingBox(), tool).toEqual(before);
     }
   });
 });
