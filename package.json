@@ -1,7 +1,7 @@
 {
   "name": "imagemarkup",
   "private": true,
-  "version": "1.3.3",
+  "version": "1.4.0",
   "type": "module",
   "license": "MIT",
   "packageManager": "npm@11.10.1",
