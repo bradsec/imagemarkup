@@ -80,7 +80,7 @@ function style(value: unknown): value is AnnotationStyle {
     && typeof value.color === 'string' && /^#[0-9a-f]{6}$/i.test(value.color)
     && finite(value.width) && value.width > 0
     && finite(value.opacity) && value.opacity >= 0 && value.opacity <= 1
-    && (value.fill === undefined || (typeof value.fill === 'string' && /^#[0-9a-f]{6}$/i.test(value.fill)))
+    && (value.fill === undefined || value.fill === null || (typeof value.fill === 'string' && /^#[0-9a-f]{6}$/i.test(value.fill)))
     && (value.stroke === undefined || typeof value.stroke === 'boolean')
     && (value.lineCap === undefined || value.lineCap === 'butt' || value.lineCap === 'round' || value.lineCap === 'square')
     && (value.lineJoin === undefined || value.lineJoin === 'round' || value.lineJoin === 'miter' || value.lineJoin === 'bevel');
@@ -97,6 +97,7 @@ function annotation(value: unknown): value is Annotation {
   if (value.type === 'rect' || value.type === 'ellipse') return rect(value.rect);
   if (value.type === 'image') return rect(value.rect) && typeof value.dataUrl === 'string' && value.dataUrl.startsWith('data:image/');
   if (value.type === 'symbol') return rect(value.rect) && typeof value.name === 'string' && symbols.includes(value.name)
+    && (value.paint === undefined || value.paint === 'separate')
     && (value.points === undefined || finite(value.points)) && (value.innerRatio === undefined || finite(value.innerRatio))
     && (value.sides === undefined || finite(value.sides));
   if (value.type === 'line' || value.type === 'arrow') return point(value.start) && point(value.end)

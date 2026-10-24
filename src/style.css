@@ -271,6 +271,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   scrollbar-width: thin;
 }
 .optionsbar[hidden] { display: none; }
+.tool-options-preview { flex: 0 0 auto; width: 80px; height: 80px; align-self: center; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 5px; background: #fff; }
+.tool-options-preview canvas { display: block; width: 100%; height: 100%; forced-color-adjust: none; }
 .options-heading { display: flex; min-height: 24px; align-items: center; justify-content: space-between; margin: -4px -4px 1px; padding: 4px; cursor: grab; touch-action: none; }
 .options-heading:active { cursor: grabbing; }
 .options-heading strong { color: var(--text); font-size: 13px; font-weight: 650; }
@@ -663,6 +665,7 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
     box-shadow: none;
     background: #26292e;
   }
+  .tool-options-preview { width: 42px; height: 42px; }
   .options-heading { min-width: max-content; margin: 0; padding: 0; cursor: default; }
   .drag-grip { display: none; }
   .options-heading strong { min-width: auto; white-space: nowrap; }
@@ -675,7 +678,8 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
   .visual-options { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; min-width: max-content; }
   .visual-options legend { flex: 0 0 auto; margin: 0; white-space: nowrap; }
   .choice-row, .choice-grid { display: flex; flex: 0 0 auto; width: max-content; }
-  .optionsbar:has(.symbol-options:not([hidden])) { flex-basis: 224px; height: 224px; flex-wrap: wrap; align-content: flex-start; overflow-x: hidden; overflow-y: auto; }
+  .editor:has(.symbol-options:not([hidden])) { --options-height: 224px; }
+  .optionsbar:has(.symbol-options:not([hidden])) { flex-wrap: wrap; align-content: flex-start; overflow-x: hidden; overflow-y: auto; }
   .symbol-options { display: block; flex: 1 0 100%; min-width: 0; max-width: none; }
   .symbol-options [data-symbol-search] { display: block; }
   .symbol-options .symbol-groups { display: block; max-height: 108px; }

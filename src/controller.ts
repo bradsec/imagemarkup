@@ -2,6 +2,7 @@ import { createScene, type Annotation, type AnnotationStyle, type ArrowHead, typ
 import { Store } from './state/store';
 import { mountCanvasHost } from './ui/canvas-host';
 import { renderShell } from './ui/shell';
+import { mountOptionsPreview } from './ui/options-preview';
 import { downloadBlob, exportScene, type ExportFormat } from './render/export';
 import { MAX_PROJECT_FILE_BYTES, parseScene, serializeScene, type SerializedScene } from './core/serialize';
 import { decodeImageDataUrl, decodeImageFile } from './io/load-image';
@@ -14,6 +15,7 @@ import { icon } from './ui/icons';
 import { DEFAULT_SELECTION_COLOR, setSelectionColor } from './render/renderer';
 import { annotationBounds, resizeAnnotationToBounds } from './core/annotations';
 import { sceneSources } from './core/history';
+import { MATERIAL_SYMBOLS } from './core/material-symbols';
 
 type MeasurementUnit = 'px' | 'in' | 'cm' | 'mm';
 
@@ -159,7 +161,9 @@ export function startApp(root: HTMLElement): void {
       const scene = store.get();
       const activeTool = button.dataset.tool as Tool;
       toolStyles.set(scene.activeTool, { ...scene.toolStyle });
-      const toolStyle = toolStyles.get(activeTool) ?? { ...scene.toolStyle, opacity: 1 };
+      const toolStyle = toolStyles.get(activeTool) ?? (activeTool === 'symbol'
+        ? { ...scene.toolStyle, fill: scene.toolStyle.color, stroke: false, opacity: 1 }
+        : { ...scene.toolStyle, opacity: 1 });
       canvasHost.cancelGesture();
       store.set({ activeTool, toolStyle, selectedId: null, selectedIds: [], marquee: null, crop: null });
       if (activeTool === 'crop') updateCropRatio();
@@ -289,6 +293,11 @@ export function startApp(root: HTMLElement): void {
   const counterFont = root.querySelector<HTMLSelectElement>('[data-style="counter-font"]')!;
   const counterTextColor = root.querySelector<HTMLInputElement>('[data-style="counter-text-color"]')!;
   const optionsbar = root.querySelector<HTMLElement>('.optionsbar')!;
+  const previewTile = optionsbar.querySelector<HTMLElement>('.tool-options-preview')!;
+  const requestOptionsPreview = mountOptionsPreview(previewTile, previewTile.querySelector('canvas')!, () => store.get(), () => {
+    const scene = store.get();
+    return scene.objects.find((object) => object.id === scene.selectedId);
+  });
   const applyCropButton = root.querySelector<HTMLButtonElement>('[data-action="apply-crop"]')!;
   const layersPanel = root.querySelector<HTMLElement>('.layers-panel')!;
   const layersList = root.querySelector<HTMLElement>('[data-layers-list]')!;
@@ -376,7 +385,9 @@ export function startApp(root: HTMLElement): void {
     setLayersCollapsed(matchMedia('(max-width: 760px), (pointer: coarse)').matches);
     const defaults = createScene();
     const activeTool = store.get().activeTool;
-    const activeStyle = toolStyles.get(activeTool) ?? defaults.toolStyle;
+    const activeStyle = toolStyles.get(activeTool) ?? (activeTool === 'symbol'
+      ? { ...defaults.toolStyle, fill: defaults.toolStyle.color, stroke: false }
+      : defaults.toolStyle);
     fill.value = '#17c0b8';
     railFill.value = '#17c0b8';
     store.set({
@@ -416,7 +427,7 @@ export function startApp(root: HTMLElement): void {
     select: [], rect: ['color', 'stroke-toggle', 'fill', 'width', 'opacity', 'line-join'], ellipse: ['color', 'stroke-toggle', 'fill', 'width', 'opacity'],
     line: ['color', 'width', 'opacity', 'line-cap'], arrow: ['color', 'width', 'opacity', 'line-cap', 'arrowheads'], pen: ['color', 'width', 'opacity', 'line-cap'],
     highlighter: ['color', 'width', 'opacity', 'line-cap'], text: ['color', 'opacity', 'text'], counter: ['color', 'opacity', 'counter'],
-    redaction: ['redaction'], crop: ['crop'], image: ['opacity'], symbol: ['color', 'opacity', 'symbol'],
+    redaction: ['redaction'], crop: ['crop'], image: ['opacity'], symbol: ['color', 'stroke-toggle', 'fill', 'width', 'opacity', 'symbol'],
   };
   const selectedLayerIds = (scene: Scene): string[] => (scene.selectedIds ?? []).length ? scene.selectedIds : (scene.selectedId ? [scene.selectedId] : []);
   function layerName(object: Annotation): string {
@@ -459,13 +470,19 @@ export function startApp(root: HTMLElement): void {
   }
   function syncUi(): void {
     const scene = store.get();
-    const selected = scene.objects.find((object) => object.id === scene.selectedId);
+    requestOptionsPreview();
+    const multiSymbols = scene.selectedIds.length > 1 && scene.selectedIds.every((id) => scene.objects.some((object) => object.id === id && object.type === 'symbol' && !object.locked));
+    const selected = scene.objects.find((object) => object.id === (multiSymbols ? scene.selectedIds[0] : scene.selectedId));
     const style = selected?.style ?? scene.toolStyle;
     const context = selected?.locked ? 'select' : selected?.type ?? scene.activeTool;
     const visible = new Set(optionMap[context] ?? []);
+    if (multiSymbols) visible.delete('symbol');
     const supportsStrokeToggle = visible.has('stroke-toggle');
+    const implicitSymbolFill = selected?.type === 'symbol' && selected.paint !== 'separate'
+      && !((selected.name === 'star' && (selected.points !== undefined || selected.innerRatio !== undefined)) || (selected.name === 'hexagon' && selected.sides !== undefined))
+      && Boolean(MATERIAL_SYMBOLS[selected.name]);
     const layerSelection = selectedLayerIds(scene);
-    if (selected && !selected.locked) visible.add('arrange');
+    if (selected && !selected.locked && !multiSymbols) visible.add('arrange');
     for (const element of root.querySelectorAll<HTMLElement>('[data-options]')) {
       const groups = element.dataset.options!.split(' ');
       element.hidden = !groups.some((group) => visible.has(group) || (group === 'select' && context === 'select'));
@@ -533,11 +550,11 @@ export function startApp(root: HTMLElement): void {
     if (!active || !([color, strokeEnabled, fillEnabled, fill, railColor, railFill, width, opacity, lineCap, lineJoin, arrowStart, arrowEnd, symbol, symbolPoints, symbolInnerRatio, symbolSides, font, fontSize, fontSizePreset, letterSpacing, lineHeight, fontWeight, fontStyle, textUnderline, textAlign, redactionMode, redactionStrength, counterShape, counterFormat, counterValue, counterNext, counterSize, counterFontSize, counterFont, counterTextColor] as Element[]).includes(active)) {
       color.value = style.color;
       railColor.value = style.color;
-      strokeEnabled.checked = !supportsStrokeToggle || style.stroke !== false;
-      fillEnabled.checked = Boolean(style.fill);
-      if (style.fill) {
-        fill.value = style.fill;
-        railFill.value = style.fill;
+      strokeEnabled.checked = context === 'symbol' && implicitSymbolFill ? false : !supportsStrokeToggle || style.stroke !== false;
+      fillEnabled.checked = Boolean(style.fill) || (context === 'symbol' && implicitSymbolFill);
+      if (style.fill || (context === 'symbol' && implicitSymbolFill)) {
+        fill.value = implicitSymbolFill ? style.color : style.fill!;
+        railFill.value = fill.value;
       }
       fill.disabled = !fillEnabled.checked;
       color.disabled = supportsStrokeToggle && !strokeEnabled.checked;
@@ -891,14 +908,15 @@ export function startApp(root: HTMLElement): void {
 
   function updateStyle(): void {
     store.update((scene) => {
-      const selected = scene.objects.find((object) => object.id === scene.selectedId);
+      const multiSymbols = scene.selectedIds.length > 1 && scene.selectedIds.every((id) => scene.objects.some((object) => object.id === id && object.type === 'symbol' && !object.locked));
+      const selected = scene.objects.find((object) => object.id === (multiSymbols ? scene.selectedIds[0] : scene.selectedId));
       const context = selected?.type ?? scene.activeTool;
       const canDisableStroke = context === 'rect' || context === 'ellipse' || context === 'symbol';
-      const style = { color: color.value, width: Number(width.value), opacity: Number(opacity.value) / 100, fill: fillEnabled.checked ? fill.value : undefined, stroke: canDisableStroke ? strokeEnabled.checked : true, lineCap: lineCap.value as CanvasLineCap, lineJoin: lineJoin.value as CanvasLineJoin };
+      const style = { color: color.value, width: Number(width.value), opacity: Number(opacity.value) / 100, fill: fillEnabled.checked ? fill.value : context === 'symbol' ? null : undefined, stroke: canDisableStroke ? strokeEnabled.checked : true, lineCap: lineCap.value as CanvasLineCap, lineJoin: lineJoin.value as CanvasLineJoin };
       return {
         ...scene,
         toolStyle: style,
-        objects: scene.objects.map((object) => object.id === scene.selectedId ? { ...object, style } : object),
+        objects: scene.objects.map((object) => (object.id === scene.selectedId || (multiSymbols && scene.selectedIds.includes(object.id))) ? { ...object, ...(object.type === 'symbol' ? { paint: 'separate' as const } : {}), style } : object),
       };
     });
     root.querySelector<HTMLOutputElement>('[data-value="width"]')!.value = formatMeasurement(Number(width.value));
@@ -911,6 +929,7 @@ export function startApp(root: HTMLElement): void {
     root.querySelector<HTMLButtonElement>('[data-color-target="fill"]')!.disabled = !fillEnabled.checked;
   }
   color.addEventListener('input', updateStyle);
+  for (const input of [color, fill, width]) input.addEventListener('focus', () => canvasHost.checkpoint());
   strokeToggle.addEventListener('click', () => { canvasHost.checkpoint(); strokeEnabled.checked = !strokeEnabled.checked; updateStyle(); });
   fillToggle.addEventListener('click', () => { canvasHost.checkpoint(); fillEnabled.checked = !fillEnabled.checked; updateStyle(); });
   strokeEnabled.addEventListener('change', updateStyle);

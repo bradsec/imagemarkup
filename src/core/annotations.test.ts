@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { annotationBounds, annotationHandles, appendPathPoints, createAnnotation, hitHandle, hitTest, moveAnnotation, resizeAnnotation, resizeAnnotationToBounds, resizeFromHandle } from './annotations';
+import { annotationBounds, annotationHandles, annotationVisualBounds, appendPathPoints, createAnnotation, hitHandle, hitTest, moveAnnotation, resizeAnnotation, resizeAnnotationToBounds, resizeFromHandle } from './annotations';
 
 const style = { color: '#f00', width: 4, opacity: 1 };
 
@@ -23,6 +23,13 @@ describe('annotations', () => {
     expect(hitTest([rect, line], { x: 10, y: 10 }, 2)?.id).toBe('line');
     expect(hitTest([rect], { x: 10, y: 10 }, 2)?.id).toBe('rect');
     expect(hitTest([line], { x: 10, y: 30 }, 2)).toBeNull();
+  });
+
+  it('includes a symbol outline in visual bounds and hit testing', () => {
+    const symbol = { id: 'symbol', type: 'symbol' as const, name: 'ring' as const, rect: { x: 10, y: 10, w: 30, h: 30 }, style: { color: '#ff0000', width: 10, opacity: 1, stroke: true } };
+    expect(annotationVisualBounds(symbol)).toEqual({ x: 5, y: 5, w: 40, h: 40 });
+    expect(hitTest([symbol], { x: 6, y: 25 }, 0)?.id).toBe('symbol');
+    expect(hitTest([symbol], { x: 4, y: 25 }, 0)).toBeNull();
   });
 
   it('skips locked objects so artwork underneath remains selectable', () => {

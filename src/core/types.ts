@@ -26,7 +26,7 @@ export interface AnnotationStyle {
   color: string;
   width: number;
   opacity: number;
-  fill?: string;
+  fill?: string | null;
   stroke?: boolean;
   lineCap?: CanvasLineCap;
   lineJoin?: CanvasLineJoin;
@@ -111,6 +111,7 @@ export interface PlacedImageAnnotation extends AnnotationBase {
 
 export interface SymbolAnnotation extends AnnotationBase {
   type: 'symbol';
+  paint?: 'separate';
   rect: Rect;
   name: SymbolName;
   points?: number;

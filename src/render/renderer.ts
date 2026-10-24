@@ -443,7 +443,13 @@ function drawArrowHead(ctx: CanvasRenderingContext2D, tip: { x: number; y: numbe
 
 function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): void {
   const { x, y, w, h } = object.rect;
-  if ((object.name === 'star' && (object.points !== undefined || object.innerRatio !== undefined)) || (object.name === 'hexagon' && object.sides !== undefined)) {
+  const baseTransform = ctx.getTransform();
+  const parametric = (object.name === 'star' && (object.points !== undefined || object.innerRatio !== undefined)) || (object.name === 'hexagon' && object.sides !== undefined);
+  const material = !parametric && Boolean(MATERIAL_SYMBOLS[object.name]);
+  const legacy = object.paint !== 'separate';
+  const fill = legacy && material ? object.style.color : object.style.fill;
+  const stroke = legacy ? !material && object.style.stroke !== false : object.style.stroke === true;
+  if (parametric) {
     const vertices = object.name === 'star' ? starVertices(object.points ?? 5, object.innerRatio ?? 0.43) : polygonVertices(object.sides ?? 6);
     ctx.save();
     ctx.translate(x, y);
@@ -451,29 +457,35 @@ function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): vo
     ctx.beginPath();
     vertices.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
     ctx.closePath();
-    if (object.style.fill) { ctx.fillStyle = object.style.fill; ctx.fill(); }
-    if (object.style.stroke !== false) ctx.stroke();
+    // Legacy parametric symbols retain their original scaled outline.
+    if (!legacy) ctx.setTransform(baseTransform);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) ctx.stroke();
     ctx.restore();
     return;
   }
   const symbol = MATERIAL_SYMBOLS[object.name];
   if (symbol) {
-    const path = new Path2D(symbol.path);
+    if (legacy) {
+      const path = new Path2D(symbol.path);
+      ctx.save();
+      if (symbol.viewBox) { ctx.translate(x, y); ctx.scale(w / 512 || 1, h / 512 || 1); }
+      else { ctx.translate(x, y + h); ctx.scale(w / 960 || 1, h / 960 || 1); }
+      if (!symbol.viewBox && symbol.rotation) { ctx.translate(480, -480); ctx.rotate(symbol.rotation * Math.PI / 180); ctx.translate(-480, 480); }
+      ctx.fillStyle = object.style.color;
+      ctx.fill(path);
+      ctx.restore();
+      return;
+    }
+    const path = new Path2D();
+    const transform = new DOMMatrix();
+    if (symbol.viewBox) transform.translateSelf(x, y).scaleSelf(w / 512 || 1, h / 512 || 1);
+    else transform.translateSelf(x, y + h).scaleSelf(w / 960 || 1, h / 960 || 1);
+    if (!symbol.viewBox && symbol.rotation) transform.translateSelf(480, -480).rotateSelf(symbol.rotation).translateSelf(-480, 480);
+    path.addPath(new Path2D(symbol.path), transform);
     ctx.save();
-    if (symbol.viewBox) {
-      ctx.translate(x, y);
-      ctx.scale(w / 512 || 1, h / 512 || 1);
-    } else {
-      ctx.translate(x, y + h);
-      ctx.scale(w / 960 || 1, h / 960 || 1);
-    }
-    if (!symbol.viewBox && symbol.rotation) {
-      ctx.translate(480, -480);
-      ctx.rotate(symbol.rotation * Math.PI / 180);
-      ctx.translate(-480, 480);
-    }
-    ctx.fillStyle = object.style.color;
-    ctx.fill(path);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(path); }
+    if (stroke) ctx.stroke(path);
     ctx.restore();
     return;
   }
@@ -507,8 +519,9 @@ function drawSymbol(ctx: CanvasRenderingContext2D, object: SymbolAnnotation): vo
   if (object.name === 'eye') { ctx.moveTo(5, 50); ctx.bezierCurveTo(25, 18, 75, 18, 95, 50); ctx.bezierCurveTo(75, 82, 25, 82, 5, 50); ctx.closePath(); ctx.moveTo(64, 50); ctx.arc(50, 50, 14, 0, Math.PI * 2); }
   if (object.name === 'hand-stop') { ctx.moveTo(35, 93); ctx.lineTo(28, 65); ctx.lineTo(14, 51); ctx.bezierCurveTo(10, 45, 10, 45, 15, 41); ctx.bezierCurveTo(20, 37, 20, 37, 25, 44); ctx.lineTo(31, 50); ctx.lineTo(31, 18); ctx.bezierCurveTo(31, 11, 45, 11, 45, 18); ctx.lineTo(45, 43); ctx.lineTo(47, 12); ctx.bezierCurveTo(48, 5, 62, 6, 61, 13); ctx.lineTo(59, 43); ctx.lineTo(63, 16); ctx.bezierCurveTo(64, 9, 78, 11, 76, 18); ctx.lineTo(72, 46); ctx.lineTo(77, 27); ctx.bezierCurveTo(79, 20, 91, 26, 88, 34); ctx.lineTo(82, 62); ctx.bezierCurveTo(79, 76, 72, 80, 68, 83); ctx.lineTo(68, 93); ctx.closePath(); }
   if (object.name === 'hand-point-left' || object.name === 'hand-point-right') { ctx.moveTo(8, 78); ctx.lineTo(8, 48); ctx.bezierCurveTo(8, 41, 22, 41, 22, 48); ctx.lineTo(22, 54); ctx.lineTo(32, 48); ctx.lineTo(32, 22); ctx.bezierCurveTo(32, 14, 48, 14, 48, 22); ctx.lineTo(48, 42); ctx.lineTo(84, 42); ctx.bezierCurveTo(94, 42, 94, 60, 84, 60); ctx.lineTo(66, 60); ctx.bezierCurveTo(62, 78, 56, 84, 51, 88); ctx.lineTo(51, 94); ctx.lineTo(22, 94); ctx.lineTo(22, 86); ctx.bezierCurveTo(14, 84, 10, 81, 8, 78); ctx.closePath(); }
-  if (object.style.fill) { ctx.fillStyle = object.style.fill; ctx.fill(); }
-  if (object.style.stroke !== false) ctx.stroke();
+  if (!legacy) ctx.setTransform(baseTransform);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) ctx.stroke();
   ctx.restore();
 }
 

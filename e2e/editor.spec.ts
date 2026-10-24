@@ -126,22 +126,61 @@ test('Space pans from focused controls without drawing or activating the focused
   await expect(page.locator('.toolrail [data-tool="rect"]')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('shows a width preview over the artboard and hides it on leave', async ({ page }, testInfo) => {
+test('shows a hover ghost over the artboard and hides it on leave', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
   await loadImage(page);
   await page.locator('.toolrail [data-tool="pen"]').click();
   const center = await canvasCenter(page);
   await page.mouse.move(center.x, center.y);
   await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
-  const before = await previewBounds(page);
-  await page.locator('[data-style="width"]').fill('36');
-  await expect.poll(async () => (await previewBounds(page))?.w).toBeGreaterThan(before!.w);
   await page.mouse.move(0, 0);
-  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'false', { timeout: 2000 });
+  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'false');
   await page.locator('.toolrail [data-tool="rect"]').click();
   await page.mouse.move(center.x, center.y);
   await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
   expect((await saveScene(page)).objects).toHaveLength(0);
+});
+
+test('pen options preview stays in the panel and changes with width', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="pen"]').click();
+  const tile = page.locator('.tool-options-preview');
+  const canvas = tile.locator('canvas');
+  await expect(tile).toBeVisible();
+  const panelBounds = await page.locator('.optionsbar').boundingBox();
+  const tileBounds = await tile.boundingBox();
+  expect(panelBounds && tileBounds).toBeTruthy();
+  expect(tileBounds!.x).toBeGreaterThanOrEqual(panelBounds!.x);
+  expect(tileBounds!.y).toBeGreaterThanOrEqual(panelBounds!.y);
+  expect(tileBounds!.x + tileBounds!.width).toBeLessThanOrEqual(panelBounds!.x + panelBounds!.width);
+  expect(tileBounds!.y + tileBounds!.height).toBeLessThanOrEqual(panelBounds!.y + panelBounds!.height);
+  const pixels = () => canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
+  const before = await pixels();
+  await page.locator('[data-style="width"]').fill('36');
+  await expect.poll(pixels).not.toBe(before);
+  await page.locator('.toolrail [data-tool="select"]').click();
+  await expect(tile).toBeHidden();
+});
+
+test('pen options preview and controls fit the mobile bar at 320px', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="pen"]').click();
+  const tile = page.locator('.tool-options-preview');
+  const color = page.locator('.optionsbar [data-style="color"]');
+  await expect(tile).toBeVisible();
+  await expect(color).toBeVisible();
+  const tileBounds = await tile.boundingBox();
+  const colorBounds = await color.boundingBox();
+  const panelBounds = await page.locator('.optionsbar').boundingBox();
+  expect(tileBounds && colorBounds && panelBounds).toBeTruthy();
+  for (const bounds of [tileBounds!, colorBounds!]) {
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+    expect(bounds.y).toBeGreaterThanOrEqual(panelBounds!.y);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(panelBounds!.y + panelBounds!.height);
+  }
+  expect(tileBounds!.x + tileBounds!.width).toBeLessThanOrEqual(colorBounds!.x);
 });
 
 test('redaction ghost renders the effect and responds to strength without exporting it', async ({ page }, testInfo) => {
@@ -879,6 +918,40 @@ test('polygon sides update a selected symbol and undo restores them', async ({ p
   expect((await saveScene(page)).objects[0].sides ?? 6).toBe(6);
 });
 
+test('symbol fill and outline width update the selected symbol and undo restores each change', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.locator('[data-choice-for="symbol"] [data-value="ring"]').click();
+  await dragImage(page, [80, 60], [150, 130]);
+  const original = (await saveScene(page)).objects[0];
+  expect(original.style).toMatchObject({ fill: original.style.color, stroke: false });
+  await page.locator('[data-color-presets="fill"] [data-color="#00b050"]').click();
+  expect((await saveScene(page)).objects[0].style.fill).toBe('#00b050');
+  await page.getByRole('button', { name: 'Toggle stroke' }).click();
+  await page.locator('[data-size-presets="width"] [data-value="12"]').click();
+  expect((await saveScene(page)).objects[0].style).toMatchObject({ fill: '#00b050', stroke: true, width: 12 });
+  await page.locator('#stage').focus();
+  await page.keyboard.press('Control+z');
+  expect((await saveScene(page)).objects[0].style).toMatchObject({ fill: '#00b050', stroke: true, width: original.style.width });
+  await page.keyboard.press('Control+z');
+  expect((await saveScene(page)).objects[0].style).toMatchObject({ fill: '#00b050', stroke: false });
+  await page.keyboard.press('Control+z');
+  expect((await saveScene(page)).objects[0].style.fill).toBe(original.style.fill);
+});
+
+test('symbol fill swatches apply to a multi-selection', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  await dragImage(page, [50, 40], [90, 80]);
+  await dragImage(page, [120, 90], [160, 130]);
+  if (await page.locator('.layers-panel').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Layers panel' }).click();
+  const rows = page.locator('[data-layer-type="symbol"] [data-action="select-layer"]');
+  await rows.first().click();
+  await rows.last().click({ modifiers: ['Control'] });
+  await page.locator('[data-color-presets="fill"] [data-color="#00b050"]').click();
+  expect((await saveScene(page)).objects.map((object: any) => object.style.fill)).toEqual(['#00b050', '#00b050']);
+});
+
 test('symbol search and arrow keys reach choices', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="symbol"]').click();
@@ -1050,8 +1123,8 @@ test('applies every contextual option family to new objects', async ({ page }) =
   await page.locator('.toolrail [data-tool="symbol"]').click();
   await page.getByRole('button', { name: 'Target reticle symbol' }).click();
   await expect(page.locator('[data-options="line-join"]')).toBeHidden();
-  expect(await page.locator('[data-options="fill"]').evaluateAll((elements) => elements.every((element) => (element as HTMLElement).hidden))).toBe(true);
-  await expect(page.locator('[data-options="stroke-toggle"]')).toBeHidden();
+  expect(await page.locator('[data-options="fill"]').evaluateAll((elements) => elements.some((element) => !(element as HTMLElement).hidden))).toBe(true);
+  await expect(page.locator('[data-options="stroke-toggle"]')).toBeVisible();
   await drag(page, [40, 30], [90, 80]);
 
   const scene = await saveScene(page);

@@ -440,8 +440,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   let spaceDown = false;
   let pointerOverStage = false;
   let hoverPoint: Point | null = null;
-  let previewPulse = false;
-  let previewTimer = 0;
   let previewFrame = 0;
   let redactionSource: CanvasImageSource | null = null;
   let sourceImage: Scene['image'] = null;
@@ -459,12 +457,11 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     const tool = scene.activeTool;
     preview.dataset.previewTool = tool;
     if (!scene.image) { redactionSource = null; redactionTile = null; sourceImage = null; sourceObjects = null; }
-    if (!scene.image || gesture || spaceDown || !['pen', 'highlighter', 'line', 'arrow', 'rect', 'ellipse', 'redaction', 'text', 'counter', 'symbol'].includes(tool) || (!hoverPoint && !previewPulse)) {
+    if (!scene.image || gesture || spaceDown || !['pen', 'highlighter', 'line', 'arrow', 'rect', 'ellipse', 'redaction', 'text', 'counter', 'symbol'].includes(tool) || !hoverPoint) {
       preview.dataset.visible = 'false';
       return;
     }
-    const fromCenter = screenToImage({ x: preview.width / 2, y: preview.height / 2 }, scene.viewport);
-    const point = hoverPoint ?? { x: Math.max(0, Math.min(scene.image.width, fromCenter.x)), y: Math.max(0, Math.min(scene.image.height, fromCenter.y)) };
+    const point = hoverPoint;
     const object = makeToolAnnotation('preview', scene, point, true);
     const { scale, tx, ty } = scene.viewport;
     previewCtx.save();
@@ -546,14 +543,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     preview.dataset.visible = 'true';
   }
 
-  host.closest('.editor')?.querySelector('.optionsbar')?.addEventListener('input', pulsePreview);
-  host.closest('.editor')?.querySelector('.optionsbar')?.addEventListener('change', pulsePreview);
-  function pulsePreview(): void {
-    previewPulse = true;
-    window.clearTimeout(previewTimer);
-    previewTimer = window.setTimeout(() => { previewPulse = false; requestPreview(); }, 800);
-    requestPreview();
-  }
   const resetSpace = () => {
     spaceDown = false;
     delete host.dataset.spacePan;

@@ -38,6 +38,14 @@ describe('scene serialization', () => {
     expect(dto.objects[0]).toMatchObject({ type: 'symbol', name: 'hand-stop' });
   });
 
+  it('preserves legacy symbol paint and explicit fill-off state', () => {
+    const scene = createScene();
+    scene.objects.push({ id: 'old', type: 'symbol', name: 'ring', rect: { x: 1, y: 2, w: 30, h: 40 }, style: { color: '#123456', width: 3, opacity: 1 } });
+    scene.objects.push({ id: 'new', type: 'symbol', paint: 'separate', name: 'ring', rect: { x: 5, y: 6, w: 30, h: 40 }, style: { color: '#abcdef', fill: null, stroke: true, width: 7, opacity: 1 } });
+    expect(parseScene(serializeScene(scene)).objects).toEqual(scene.objects);
+    expect(() => parseScene(serializeScene({ ...scene, objects: [{ ...scene.objects[1], style: { ...scene.objects[1].style, fill: 'invalid' } }] }))).toThrow('Invalid or unsupported');
+  });
+
   it('rejects malformed and version-mismatched input', () => {
     expect(() => parseScene('{')).toThrow('Invalid imagemarkup project JSON');
     expect(() => parseScene(JSON.stringify({ version: 2 }))).toThrow('Invalid or unsupported');

@@ -147,6 +147,7 @@ export function renderShell(root: HTMLElement): Shell {
               <strong id="active-tool-name">Move</strong>
               <span class="drag-grip" aria-hidden="true"></span>
             </div>
+            <div class="tool-options-preview" aria-hidden="true" hidden><canvas></canvas></div>
             <span class="option-hint" data-options="select">Select an object to edit its properties</span>
             <span class="option-hint" data-options="crop">Drag over the area to keep, then apply the crop</span>
             <label data-options="crop">Aspect ratio <select data-style="crop-ratio" aria-label="Crop aspect ratio"><option value="free">Free</option><option value="original">Original</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="16:9">16:9</option></select></label>
