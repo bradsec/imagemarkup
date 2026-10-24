@@ -41,6 +41,8 @@
 * { box-sizing: border-box; }
 
 html, body, #app { width: 100%; min-height: 100%; margin: 0; }
+/* Pinch is blocked outside the canvas, so a double-tap page zoom could not be undone. */
+html { touch-action: manipulation; }
 
 body {
   overflow: hidden;
@@ -625,6 +627,10 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
   .dialog-actions button, .transform-grid button { min-height: 44px; }
 }
 
+@media (any-pointer: coarse) {
+  input, select, textarea { font-size: 16px; }
+}
+
 @media (max-width: 760px) {
   :root { --header-height: calc(52px + env(safe-area-inset-top)); --options-height: 56px; }
   .app-header {
@@ -712,6 +718,10 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 
 @media (max-width: 760px) and (pointer: coarse) {
   .load-error { top: 8px; right: 8px; bottom: auto; max-width: calc(100% - 16px); }
+}
+
+@media (max-width: 760px) and (any-pointer: coarse) {
+  .options-heading::after { content: "Swipe for more ›" / ""; margin-left: 6px; color: var(--text-faint); font-size: 11px; white-space: nowrap; }
 }
 
 @media (forced-colors: active) {

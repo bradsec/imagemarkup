@@ -183,6 +183,52 @@ test('pen options preview and controls fit the mobile bar at 320px', async ({ pa
   expect(tileBounds!.x + tileBounds!.width).toBeLessThanOrEqual(colorBounds!.x);
 });
 
+test('iPhone controls stay readable and reachable for every tool', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'webkit-iphone', 'iPhone layout');
+  await loadImage(page);
+  for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 844, height: 390 }, { width: 667, height: 375 }]) {
+    await page.setViewportSize(viewport);
+    for (const tool of await page.locator('.toolrail [data-tool]').all()) {
+      await tool.scrollIntoViewIfNeeded();
+      await tool.click();
+      // One in-page pass: the options bar re-renders on store updates, which detaches per-control locators.
+      const unreachable = await page.locator('.optionsbar').evaluate((bar) => [...bar.querySelectorAll<HTMLElement>('button, input, select, textarea')]
+        .filter((control) => control.checkVisibility() && !(control as HTMLButtonElement).disabled)
+        .filter((control) => {
+          const outside = (box: DOMRect, area: { left: number; top: number; right: number; bottom: number }) =>
+            box.right <= area.left || box.bottom <= area.top || box.left >= area.right || box.top >= area.bottom;
+          // Script can scroll overflow: hidden, a finger cannot, so a control that starts clipped needs a user-scrollable ancestor.
+          for (let parent = control.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+            const style = getComputedStyle(parent);
+            if (!outside(control.getBoundingClientRect(), parent.getBoundingClientRect())) continue;
+            const scrollable = (/auto|scroll/.test(style.overflowX) && parent.scrollWidth > parent.clientWidth)
+              || (/auto|scroll/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight);
+            if (!scrollable && style.overflow !== 'visible') return true;
+          }
+          control.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          return outside(control.getBoundingClientRect(), { left: 0, top: 0, right: innerWidth, bottom: innerHeight });
+        })
+        .map((control) => control.getAttribute('aria-label') ?? control.outerHTML.slice(0, 80)));
+      expect(unreachable, await tool.getAttribute('data-tool') ?? '').toEqual([]);
+      expect(await page.evaluate(() => document.body.scrollWidth)).toBe(viewport.width);
+      const fields = page.locator('input:visible, select:visible, textarea:visible');
+      for (const field of await fields.all()) {
+        expect(await field.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
+      }
+    }
+    await page.locator('#stage').focus();
+    for (let step = 0; step < 6; step++) await page.keyboard.press('-');
+    await page.locator('.toolrail [data-tool="text"]').click();
+    const stage = await page.locator('#stage').boundingBox();
+    if (!stage) throw new Error('Stage is not visible');
+    await page.locator('#stage').click({ position: { x: stage.width / 2, y: stage.height / 2 } });
+    const editor = page.locator('.text-editor');
+    await expect(editor).toBeVisible();
+    expect(await editor.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('mobile stroke and fill controls stay docked in the toolrail', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await loadImage(page);
@@ -1771,6 +1817,8 @@ test.describe('mobile layout', () => {
       document.dispatchEvent(event);
       return event.defaultPrevented;
     })).toBe(true);
+    // Double-tap page zoom would strand the UI, since pinch-out is blocked.
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction)).toBe('manipulation');
     await expect(page.locator('.topbar-actions')).toBeHidden();
     await expect(page.locator('.topbar-actions [data-action="zoom-in"]')).toBeHidden();
     await expect(page.locator('.topbar-actions [data-action="save-project"]')).toBeHidden();

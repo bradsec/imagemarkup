@@ -58,6 +58,23 @@ function mountedScene() {
 }
 
 describe('canvas gesture cancellation', () => {
+  it('keeps the touch text editor at 16px while its visual box follows canvas zoom', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    const { host, store, pointer } = mountedScene();
+    Object.defineProperty(host, 'clientWidth', { value: 300 });
+    store.set({ activeTool: 'text', viewport: { scale: 0.25, tx: 0, ty: 0 } });
+    pointer('pointerdown', 20, 20);
+    await Promise.resolve();
+    const editor = host.querySelector<HTMLTextAreaElement>('.text-editor')!;
+    editor.value = 'AB';
+    editor.dispatchEvent(new Event('input'));
+    const visualScale = Number(editor.style.transform.match(/scale\(([^)]+)\)/)?.[1]);
+    expect(Number.parseFloat(getComputedStyle(editor).fontSize)).toBeGreaterThanOrEqual(16);
+    expect(Number.parseFloat(editor.style.width) * visualScale).toBeCloseTo(12);
+    expect(Number.parseFloat(editor.style.height) * visualScale).toBeCloseTo(9.6);
+    host.remove();
+  });
+
   it('keeps typed text when pointercancel bubbles from its editor', async () => {
     const { host, store, pointer } = mountedScene();
     store.set({ activeTool: 'text' });
