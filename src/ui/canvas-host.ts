@@ -156,6 +156,11 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   const history = new AnnotationHistory();
   let canvasSize: { width: number; height: number } | null = null;
   let fileIntent: 'replace' | 'place' = 'replace';
+  const openImage = (intent: 'replace' | 'place' = 'replace') => {
+    fileIntent = intent;
+    fileInput.value = '';
+    fileInput.click();
+  };
   let loadGeneration = 0;
 
   function replaceScene(next: Scene, undoable = false): void {
@@ -769,7 +774,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
         gesture = { kind: 'crop', start: image };
       }
     } else if (scene.activeTool === 'image') {
-      fileInput.click();
+      openImage('place');
       return;
     } else {
       const id = crypto.randomUUID();
@@ -1066,11 +1071,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       if (colorCallback) host.dataset.eyedropper = 'true';
       else delete host.dataset.eyedropper;
     },
-    openImage(intent = 'replace') {
-      fileIntent = intent;
-      fileInput.value = '';
-      fileInput.click();
-    },
+    openImage,
     duplicateSelected() {
       duplicateSelected();
     },

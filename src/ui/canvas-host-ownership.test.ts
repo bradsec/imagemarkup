@@ -5,6 +5,10 @@ import { Store } from '../state/store';
 import { mountCanvasHost } from './canvas-host';
 
 vi.mock('../render/renderer', () => ({ renderScene: vi.fn() }));
+vi.mock('../io/load-image', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../io/load-image')>();
+  return { ...actual, decodeImageFile: vi.fn(async () => ({ source: {} as ImageBitmap, width: 20, height: 20, dataUrl: 'data:image/png;base64,AA==' })) };
+});
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -103,6 +107,21 @@ describe('canvas gesture cancellation', () => {
 });
 
 describe('accessible placement', () => {
+  it('places an image after File Open armed replacement', async () => {
+    const { host, store, canvasHost, pointer } = mountedScene();
+    const confirm = vi.spyOn(window, 'confirm');
+    canvasHost.openImage('replace');
+    store.set({ activeTool: 'image' });
+    pointer('pointerdown', 50, 50);
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', { value: [new File(['image'], 'image.png', { type: 'image/png' })], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(store.get().objects[0]).toMatchObject({ type: 'image' });
+    host.remove();
+  });
+
   it('does not activate drawing shortcuts without an image', () => {
     const { host, store } = mountedScene();
     store.set({ image: null });
