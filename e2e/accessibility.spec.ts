@@ -26,7 +26,7 @@ test('has no automatically detectable WCAG A or AA violations in primary states'
 
   await loadImage(page);
   await page.locator('[data-tool="rect"]').click();
-  const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
+  const canvas = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   await page.mouse.move(canvas.x + canvas.width / 2 - 30, canvas.y + canvas.height / 2 - 20);
   await page.mouse.down();
@@ -114,7 +114,7 @@ test('focuses a dialog heading and returns to the invoking menu on close', async
 test('opens each guide without changing the canvas and returns focus on Escape or Close', async ({ page }) => {
   await loadImage(page);
   await page.locator('[data-tool="rect"]').click();
-  const canvas = page.locator('.stage-host canvas:not(.tool-preview)');
+  const canvas = page.locator('.stage-host > canvas:not(.tool-preview)');
   const box = await canvas.boundingBox();
   if (!box) throw new Error('Canvas is not visible');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -178,7 +178,7 @@ test('shows a focus ring on the inline text editor', async ({ page }) => {
   await loadImage(page);
   await page.locator('[data-tool="text"]').click();
   await collapseOptionsIfOpen(page);
-  const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
+  const canvas = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
   await expect(page.locator('.text-editor')).toBeFocused();
@@ -190,7 +190,7 @@ test('moves a selected annotation with focused arrow keys', async ({ page }) => 
   await loadImage(page);
   await page.locator('[data-tool="rect"]').click();
   await collapseOptionsIfOpen(page);
-  const canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
+  const canvas = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   await page.mouse.move(canvas.x + canvas.width / 2 - 30, canvas.y + canvas.height / 2 - 20);
   await page.mouse.down();

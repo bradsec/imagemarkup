@@ -133,7 +133,7 @@ for (const viewport of viewports) {
     await page.locator('.toolrail [data-tool="rect"]').click();
     // The expanded options panel covers the canvas center on phones; dismiss it as a user would.
     await page.getByRole('button', { name: 'Collapse Tool options panel' }).click();
-    const canvas = (await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox())!;
+    const canvas = (await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox())!;
     await page.mouse.move(canvas.x + canvas.width / 2 - 20, canvas.y + canvas.height / 2 - 20);
     await page.mouse.down();
     await page.mouse.move(canvas.x + canvas.width / 2 + 20, canvas.y + canvas.height / 2 + 20);

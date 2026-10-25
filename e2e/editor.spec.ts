@@ -155,7 +155,7 @@ test('uses Shift and Alt or Option modifiers while resizing', async ({ page }) =
   let rotateCursor = '';
   for (let offset = -50; offset >= -150 && !rotateCursor.includes('data:image/svg+xml'); offset -= 4) {
     await page.mouse.move(center.x, center.y + offset);
-    rotateCursor = await page.locator('.stage-host canvas:not(.tool-preview)').evaluate((canvas) => canvas.style.cursor);
+    rotateCursor = await page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((canvas) => canvas.style.cursor);
   }
   if (await page.evaluate(() => matchMedia('(pointer: fine)').matches)) expect(rotateCursor).toContain('data:image/svg+xml');
 
@@ -273,7 +273,7 @@ test('applies independent arrowheads and rotates a line from its rotation handle
 
   await page.locator('.toolrail [data-tool="select"]').click();
   scene = await saveScene(page);
-  let canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
+  let canvas = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   const initialCanvas = canvas;
   const arrow = scene.objects[0];
@@ -284,12 +284,12 @@ test('applies independent arrowheads and rotates a line from its rotation handle
   await page.mouse.click(lineCenter.x, lineCenter.y);
   scene = await saveScene(page);
   expect(scene.selectedId).toBe(scene.objects[0].id);
-  canvas = await page.locator('.stage-host canvas:not(.tool-preview)').boundingBox();
+  canvas = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   const selectedToScreen = (point: { x: number; y: number }) => ({ x: canvas!.x + scene.viewport.tx + point.x * scene.viewport.scale, y: canvas!.y + scene.viewport.ty + point.y * scene.viewport.scale });
   const endPoint = selectedToScreen(arrow.end);
   await page.mouse.move(endPoint.x, endPoint.y);
-  await expect(page.locator('.stage-host canvas:not(.tool-preview)')).toHaveCSS('cursor', 'move');
+  await expect(page.locator('.stage-host > canvas:not(.tool-preview)')).toHaveCSS('cursor', 'move');
   const grip = selectedToScreen({ x: center.x, y: center.y - padding - 24 });
   const rotated = selectedToScreen({ x: center.x + padding + 24, y: center.y });
   await page.mouse.move(grip.x, grip.y);

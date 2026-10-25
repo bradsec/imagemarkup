@@ -52,7 +52,7 @@ test('redaction ghost renders the effect and responds to strength without export
   exported.getContext('2d').drawImage(await loadCanvasImage(path), 0, 0);
   expect([...exported.getContext('2d').getImageData(0, 0, 320, 240).data])
     .toEqual([...fixtureContext.getImageData(0, 0, 320, 240).data]);
-  const scenePixels = () => page.locator('.stage-host canvas:not(.tool-preview)').evaluate((element) => {
+  const scenePixels = () => page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
     const x = Math.floor(canvas.width / 2), y = Math.floor(canvas.height / 2);
     return [...canvas.getContext('2d')!.getImageData(x - 15, y - 15, 30, 30).data];
@@ -78,7 +78,7 @@ test('counter ghost follows format and size and matches the placed counter bound
   await page.mouse.move(center.x, center.y);
   await expect.poll(async () => (await previewBounds(page))?.w).toBeGreaterThan(first!.w);
   const ghost = await previewBounds(page);
-  await page.locator('.stage-host canvas:not(.tool-preview)').evaluate((element) => {
+  await page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
     (canvas as HTMLCanvasElement & { beforePlacement?: Uint8ClampedArray }).beforePlacement = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
   });
@@ -86,7 +86,7 @@ test('counter ghost follows format and size and matches the placed counter bound
   const scene = await saveScene(page);
   expect(scene.objects[0]).toMatchObject({ type: 'counter', format: 'roman', radius: 32 });
   await page.keyboard.press('Escape');
-  const placed = await page.locator('.stage-host canvas:not(.tool-preview)').evaluate((element) => {
+  const placed = await page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
     const before = (canvas as HTMLCanvasElement & { beforePlacement?: Uint8ClampedArray }).beforePlacement!;
     const after = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;

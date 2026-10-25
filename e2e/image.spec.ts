@@ -309,3 +309,16 @@ test('pressing Enter in a resize field resizes instead of rotating', async ({ pa
   await expect(page.locator('#transform-dialog')).not.toHaveAttribute('open', '');
   expect((await saveScene(page)).image).toMatchObject({ width: 160, height: 120 });
 });
+
+test('toggles rulers from the View menu and remembers the choice', async ({ page }) => {
+  await loadImage(page);
+  const rulers = page.locator('.rulers');
+  await expect(rulers).toBeHidden();
+  await page.locator('details.app-menu > summary', { hasText: 'View' }).click();
+  await page.locator('[data-action="toggle-rulers"]').click();
+  await expect(page.locator('[data-action="toggle-rulers"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(rulers).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('imagemarkup.preferences') ?? '{}').showRulers)).toBe(true);
+  await loadImage(page);
+  await expect(page.locator('.rulers')).toBeVisible();
+});
