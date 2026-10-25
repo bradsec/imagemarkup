@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { renderShell } from './shell';
-import { SYMBOL_PALETTE } from '../core/material-symbols';
+import { SYMBOL_PALETTE } from '../core/symbols';
 
 describe('renderShell', () => {
   it('renders the version and repository link in the footer', () => {
@@ -74,14 +74,18 @@ describe('renderShell', () => {
       .toEqual(['select', 'pan', 'rect', 'ellipse', 'line', 'arrow', 'pen', 'highlighter', 'text', 'counter', 'symbol', 'redaction', 'crop', 'image']);
   });
 
-  it('uses one consistent Material SVG treatment for every symbol choice', () => {
+  it('uses one consistent Lucide SVG treatment for every symbol choice', () => {
     const root = document.createElement('div');
     renderShell(root);
     const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-choice-for="symbol"] button')];
     expect(buttons).toHaveLength(SYMBOL_PALETTE.length);
     expect(buttons.map((button) => button.dataset.value)).not.toContain('hand-stop');
+    expect(buttons.map((button) => button.dataset.value)).not.toContain('rounded-square');
+    expect(buttons.map((button) => button.dataset.value)).not.toContain('ring');
+    expect(root.querySelector('[data-style="symbol"] option[value="rounded-square"]')).toBeNull();
+    expect(root.querySelector('[data-style="symbol"] option[value="ring"]')).toBeNull();
     expect(buttons.every((button) => button.children.length === 1 && button.firstElementChild?.matches('svg.symbol-preview'))).toBe(true);
-    expect(buttons.every((button) => ['0 -960 960 960', '0 0 512 512'].includes(button.firstElementChild?.getAttribute('viewBox') ?? ''))).toBe(true);
+    expect(buttons.every((button) => button.firstElementChild?.getAttribute('viewBox') === '0 0 24 24')).toBe(true);
   });
 
   it('shows the three corner-join shapes with a thick actual join', () => {

@@ -1,5 +1,5 @@
 import { annotationBounds } from '../core/annotations';
-import { MATERIAL_SYMBOLS } from '../core/material-symbols';
+import { SYMBOLS } from '../core/symbols';
 import type { CounterAnnotation, Scene, Tool } from '../core/types';
 import type { Store } from '../state/store';
 import { mountCanvasHost } from './canvas-host';
@@ -113,10 +113,19 @@ export function mountOptionsView(deps: {
     root.querySelector<HTMLElement>('[data-options="fill"] .paint-toggle-wrap')!.hidden = solidRedaction;
     if (multiSymbols) visible.delete('symbol');
     const supportsStrokeToggle = visible.has('stroke-toggle');
-    const implicitSymbolFill = selected?.type === 'symbol' && selected.paint !== 'separate'
-      && !((selected.name === 'star' && (selected.points !== undefined || selected.innerRatio !== undefined)) || (selected.name === 'hexagon' && selected.sides !== undefined))
-      && Boolean(MATERIAL_SYMBOLS[selected.name]);
     const layerSelection = selectedLayerIds(scene);
+    const selectedSymbols = layerSelection.filter((id) => scene.objects.some((object) => object.id === id && object.type === 'symbol'));
+    const canFillSymbol = context !== 'symbol' || (selectedSymbols.length
+      ? selectedSymbols.every((id) => {
+        const object = scene.objects.find((item) => item.id === id)!;
+        return object.type === 'symbol' && SYMBOLS[object.name].closed;
+      })
+      : SYMBOLS[scene.symbolName].closed);
+    fillToggle.disabled = !canFillSymbol;
+    fillEnabled.disabled = !canFillSymbol;
+    fillToggle.title = canFillSymbol ? 'Toggle fill' : 'Fill is available for closed symbols only';
+    fillToggle.parentElement!.title = canFillSymbol ? '' : 'Fill is available for closed symbols only';
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-color-presets="fill"] button')) button.disabled = !canFillSymbol;
     if (selected && !selected.locked && !multiSymbols) visible.add('arrange');
     for (const element of root.querySelectorAll<HTMLElement>('[data-options]')) {
       const groups = element.dataset.options!.split(' ');
@@ -189,20 +198,20 @@ export function mountOptionsView(deps: {
     if (!active || !([color, strokeEnabled, fillEnabled, fill, railColor, railFill, width, opacity, lineCap, lineJoin, arrowStart, arrowEnd, symbol, symbolPoints, symbolInnerRatio, symbolSides, font, fontSize, fontSizePreset, letterSpacing, lineHeight, fontWeight, fontStyle, textUnderline, textAlign, redactionMode, redactionStrength, counterShape, counterFormat, counterValue, counterNext, counterSize, counterFontSize, counterFont, counterTextColor] as Element[]).includes(active)) {
       color.value = style.color;
       railColor.value = style.color;
-      strokeEnabled.checked = context === 'symbol' && implicitSymbolFill ? false : !supportsStrokeToggle || style.stroke !== false;
-      fillEnabled.checked = solidRedaction || Boolean(style.fill) || (context === 'symbol' && implicitSymbolFill);
-      if (solidRedaction || style.fill || (context === 'symbol' && implicitSymbolFill)) {
-        fill.value = solidRedaction ? style.fill ?? '#000000' : implicitSymbolFill ? style.color : style.fill!;
+      strokeEnabled.checked = !supportsStrokeToggle || style.stroke !== false;
+      fillEnabled.checked = solidRedaction || Boolean(style.fill);
+      if (solidRedaction || style.fill) {
+        fill.value = solidRedaction ? style.fill ?? '#000000' : style.fill!;
         fillColors.set(context, fill.value);
       } else if (fillColors.has(context)) {
         // Fill is off: show this tool's last fill color so turning fill back on restores it.
         fill.value = fillColors.get(context)!;
       }
       railFill.value = fill.value;
-      fill.disabled = !fillEnabled.checked;
+      fill.disabled = !canFillSymbol || !fillEnabled.checked;
       color.disabled = supportsStrokeToggle && !strokeEnabled.checked;
       root.querySelector<HTMLButtonElement>('[data-color-target="color"]')!.disabled = supportsStrokeToggle && !strokeEnabled.checked;
-      root.querySelector<HTMLButtonElement>('[data-color-target="fill"]')!.disabled = !fillEnabled.checked;
+      root.querySelector<HTMLButtonElement>('[data-color-target="fill"]')!.disabled = !canFillSymbol || !fillEnabled.checked;
       width.value = String(style.width);
       opacity.value = String(Math.round(style.opacity * 100));
       lineCap.value = style.lineCap ?? 'round';

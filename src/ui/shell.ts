@@ -1,5 +1,5 @@
 import { icon, type IconName } from './icons';
-import { MATERIAL_SYMBOLS, SYMBOL_GROUPS } from '../core/material-symbols';
+import { SYMBOLS, SYMBOL_GROUPS } from '../core/symbols';
 import type { SymbolName } from '../core/types';
 
 const OCTOCAT =
@@ -42,14 +42,14 @@ function numericCompanion(root: HTMLElement, selector: string, label: string, ki
   pair.append(companion);
 }
 
-function materialSymbolPreview(name: SymbolName): string {
-  const symbol = MATERIAL_SYMBOLS[name];
-  const transform = symbol.rotation ? ` transform="rotate(${symbol.rotation} 480 -480)"` : '';
-  return `<svg class="symbol-preview" viewBox="${symbol.viewBox ?? '0 -960 960 960'}" aria-hidden="true" focusable="false"><path d="${symbol.path}"${transform}/></svg>`;
+function symbolPreview(name: SymbolName): string {
+  const symbol = SYMBOLS[name];
+  const transform = symbol.rotation || symbol.flip ? `<g transform="translate(12 12) rotate(${symbol.rotation ?? 0}) scale(${symbol.flip ? -1 : 1} 1) translate(-12 -12)">${symbol.markup}</g>` : symbol.markup;
+  return `<svg class="symbol-preview" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${transform}</svg>`;
 }
 
 function symbolOptions(): string {
-  return `<fieldset class="visual-options symbol-options" data-options="symbol"><legend>Symbol</legend><select data-style="symbol" aria-label="Symbol">${SYMBOL_GROUPS.map((group) => `<optgroup label="${group.label}">${group.names.map((name) => `<option value="${name}">${MATERIAL_SYMBOLS[name].label}</option>`).join('')}</optgroup>`).join('')}</select><label>Search symbols <input type="search" data-symbol-search aria-label="Search symbols"></label><div class="symbol-groups" data-choice-for="symbol">${SYMBOL_GROUPS.map((group) => `<section role="group" aria-label="${group.label}" data-symbol-group><strong>${group.label}</strong><div class="choice-grid">${group.names.map((name) => `<button type="button" data-value="${name}"></button>`).join('')}</div></section>`).join('')}</div></fieldset>`;
+  return `<fieldset class="visual-options symbol-options" data-options="symbol"><legend>Symbol</legend><select data-style="symbol" aria-label="Symbol">${SYMBOL_GROUPS.map((group) => `<optgroup label="${group.label}">${group.names.map((name) => `<option value="${name}">${SYMBOLS[name].label}</option>`).join('')}</optgroup>`).join('')}</select><label>Search symbols <input type="search" data-symbol-search aria-label="Search symbols"></label><div class="symbol-groups" data-choice-for="symbol">${SYMBOL_GROUPS.map((group) => `<section role="group" aria-label="${group.label}" data-symbol-group><strong>${group.label}</strong><div class="choice-grid">${group.names.map((name) => `<button type="button" data-value="${name}"></button>`).join('')}</div></section>`).join('')}</div></fieldset>`;
 }
 
 interface ToolDefinition {
@@ -284,7 +284,7 @@ export function renderShell(root: HTMLElement): Shell {
           <div class="dialog-heading"><h2 id="about-title" tabindex="-1">About imagemarkup</h2><p>Version ${__APP_VERSION__}</p></div>
           <p>A private, browser-based image annotation editor. Images and projects remain on your device unless you choose to share them.</p>
           <p>Created by Mark Bradley (<a href="https://github.com/bradsec" target="_blank" rel="noopener noreferrer">BRADSEC</a>).</p>
-          <p>Bundled assets include Lucide interface icons, Google Material Symbols for annotation symbols, fonts under the SIL Open Font License, the Primer Octicons GitHub mark, and legacy Font Awesome hand gestures. <a href="./THIRD-PARTY-LICENSES.txt" target="_blank" rel="noopener noreferrer">View third-party licenses</a>.</p>
+          <p>Bundled assets include Lucide interface icons and annotation symbols, fonts under the SIL Open Font License, and the Primer Octicons GitHub mark. <a href="./THIRD-PARTY-LICENSES.txt" target="_blank" rel="noopener noreferrer">View third-party licenses</a>.</p>
           <a class="about-repo-link" href="https://github.com/bradsec/imagemarkup" target="_blank" rel="noopener noreferrer">View imagemarkup on GitHub</a>
           <p class="about-support-copy">If you find this useful, please consider starring the repository. It helps others discover the project. You can also support me on <a href="https://ko-fi.com/bradsec" target="_blank" rel="noopener noreferrer">Ko-fi</a>.</p>
           <div class="dialog-actions"><button value="close">Close</button></div>
@@ -425,9 +425,9 @@ export function renderShell(root: HTMLElement): Shell {
 
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-choice-for="symbol"] [data-value]')) {
     const name = button.dataset.value as SymbolName;
-    const symbol = MATERIAL_SYMBOLS[name];
+    const symbol = SYMBOLS[name];
     if (!symbol) continue;
-    button.innerHTML = materialSymbolPreview(name);
+    button.innerHTML = symbolPreview(name);
     button.setAttribute('aria-label', `${symbol.label} symbol`);
   }
   for (const group of ['line-cap', 'line-join']) {

@@ -3,7 +3,6 @@ import { createCanvas, DOMMatrix as CanvasDOMMatrix, Path2D as CanvasPath2D, typ
 import { counterLabel, renderArtwork, renderScene, watermarkTileSpacing, type Surface } from './renderer';
 import { createScene, type SymbolName } from '../core/types';
 import { parseScene, serializeScene } from '../core/serialize';
-import { MATERIAL_SYMBOLS } from '../core/material-symbols';
 import { starVertices } from '../core/symbol-geometry';
 
 globalThis.Path2D = CanvasPath2D as unknown as typeof Path2D;
@@ -164,7 +163,7 @@ describe('renderScene', () => {
     expect([outside[0], outside[1], outside[2]]).toEqual([0, 0, 255]);
   });
 
-  it.each(['star', 'ring', 'hand-stop'] as const)('uses fill and a uniform image-pixel outline for %s', (name) => {
+  it.each(['star', 'ring'] as const)('uses fill and a uniform image-pixel outline for %s', (name) => {
     const render = (w: number, h: number, stroke: boolean, fill: string | null) => {
       const { surface, canvas } = makeSurface(180, 180);
       const scene = createScene();
@@ -180,13 +179,13 @@ describe('renderScene', () => {
     expect(painted.some((value, index) => index % 4 === 1 && value > 200 && painted[index - 1] < 50)).toBe(true);
     const fillOnly = render(100, 100, false, '#00ff00').getImageData(0, 0, 180, 180).data;
     expect(fillOnly.some((value, index) => index % 4 === 0 && value > 200 && fillOnly[index + 3] > 0)).toBe(false);
-    if (name === 'ring') expect(render(100, 100, false, '#00ff00').getImageData(70, 70, 1, 1).data[3]).toBe(0);
+    if (name === 'ring') expect(render(100, 100, false, '#00ff00').getImageData(70, 70, 1, 1).data[3]).toBeGreaterThan(0);
     const strokeOnly = render(100, 100, true, null).getImageData(0, 0, 180, 180).data;
     expect(strokeOnly.some((value, index) => index % 4 === 1 && value > 200 && strokeOnly[index + 3] > 0)).toBe(false);
     expect(render(100, 50, true, '#00ff00').getImageData(0, 0, 180, 180).data.some((value, index) => index % 4 === 0 && value > 200)).toBe(true);
   });
 
-  it('keeps a Material symbol outline uniform when its aspect ratio changes', () => {
+  it('keeps a Lucide symbol outline uniform when its aspect ratio changes', () => {
     const thickness = (w: number, h: number) => {
       const { surface, canvas } = makeSurface(180, 180);
       const scene = createScene();
@@ -206,6 +205,34 @@ describe('renderScene', () => {
     expect(Math.abs(thickness(100, 100) - thickness(100, 150))).toBeLessThanOrEqual(1);
   });
 
+  it.each([
+    { fill: '#00ff00', stroke: true },
+    { fill: '#00ff00', stroke: false },
+    { fill: null, stroke: true },
+  ])('keeps separate parametric star paint pixels for $fill and stroke $stroke', ({ fill, stroke }) => {
+    const scene = createScene();
+    scene.image = { source: createCanvas(120, 120) as unknown as CanvasImageSource, width: 120, height: 120, dataUrl: '' };
+    scene.objects.push({ id: 'star', type: 'symbol', paint: 'separate', name: 'star', points: 5, rect: { x: 10, y: 15, w: 80, h: 60 }, style: { color: '#123456', fill, stroke, width: 7, opacity: 1 } });
+    const expected = createCanvas(120, 120);
+    const ctx = expected.getContext('2d');
+    ctx.strokeStyle = '#123456';
+    ctx.lineWidth = 7;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.translate(10, 15);
+    ctx.scale(80 / 100, 60 / 100);
+    ctx.beginPath();
+    starVertices(5, 0.43).forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+    ctx.closePath();
+    ctx.setTransform(new CanvasDOMMatrix());
+    if (stroke && fill) { ctx.lineWidth = 14; ctx.stroke(); }
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke && !fill) ctx.stroke();
+    const actual = makeSurface(120, 120);
+    renderArtwork(actual.surface, scene);
+    expect(actual.canvas.toBuffer('image/png')).toEqual(expected.toBuffer('image/png'));
+  });
+
   it('renders legacy stars and hexagons unchanged after project load', () => {
     const source = createCanvas(100, 100);
     const scene = createScene();
@@ -219,22 +246,51 @@ describe('renderScene', () => {
     expect(after.canvas.toBuffer('image/png')).toEqual(before.canvas.toBuffer('image/png'));
   });
 
-  it('renders an old Material symbol with the same fill calls after a project round-trip', () => {
+  it('renders legacy paint as a stroke and ignores fill on an open glyph', () => {
     const scene = createScene();
     scene.image = { source: createCanvas(120, 120) as unknown as CanvasImageSource, width: 120, height: 120, dataUrl: 'data:image/png;base64,AA==' };
-    scene.objects.push({ id: 'old', type: 'symbol', name: 'ring', rect: { x: 10, y: 15, w: 80, h: 60 }, style: { color: '#123456', fill: '#00ff00', width: 7, opacity: 1, stroke: true } });
+    scene.objects.push({ id: 'old', type: 'symbol', name: 'ring', rect: { x: 10, y: 15, w: 80, h: 80 }, style: { color: '#123456', fill: '#00ff00', width: 7, opacity: 1, stroke: false } });
+    scene.objects.push({
+      id: 'open', type: 'symbol',
+      paint: 'separate',
+      name: 'check',
+      rect: { x: 10, y: 15, w: 80, h: 80 },
+      style: { color: '#ff0000', fill: '#00ff00', width: 4, opacity: 1, stroke: true },
+    });
+    const actual = makeSurface(120, 120);
+    renderArtwork(actual.surface, { ...scene, objects: parseScene(serializeScene(scene)).objects });
+    const pixels = actual.canvas.getContext('2d').getImageData(0, 0, 120, 120).data;
+    expect(
+      pixels.some((value, index) => index % 4 === 0 && value > 200 && pixels[index + 3] > 0),
+    ).toBe(true);
+    expect(
+      pixels.some((value, index) => index % 4 === 1 && value > 200 && pixels[index + 3] > 200),
+    ).toBe(false);
+    expect(actual.canvas.getContext('2d').getImageData(50, 50, 1, 1).data[3]).toBe(0);
+  });
+
+  it('keeps the scaled outline for a legacy parametric star', () => {
+    const scene = createScene();
+    scene.image = { source: createCanvas(120, 120) as unknown as CanvasImageSource, width: 120, height: 120, dataUrl: 'data:image/png;base64,AA==' };
+    scene.objects.push({ id: 'old-star', type: 'symbol', name: 'star', points: 5, rect: { x: 10, y: 15, w: 80, h: 60 }, style: { color: '#123456', width: 7, opacity: 1 } });
     const expected = createCanvas(120, 120);
     const ctx = expected.getContext('2d');
     ctx.translate(10, 15);
-    ctx.scale(80 / 512, 60 / 512);
-    ctx.fillStyle = '#123456';
-    ctx.fill(new CanvasPath2D(MATERIAL_SYMBOLS.ring.path));
+    ctx.scale(80 / 100, 60 / 100);
+    ctx.beginPath();
+    starVertices(5, 0.43).forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+    ctx.closePath();
+    ctx.strokeStyle = '#123456';
+    ctx.lineWidth = 7;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
     const actual = makeSurface(120, 120);
     renderArtwork(actual.surface, { ...scene, objects: parseScene(serializeScene(scene)).objects });
     expect(actual.canvas.toBuffer('image/png')).toEqual(expected.toBuffer('image/png'));
   });
 
-  it('retains the old scaled outline for an unmarked parametric star', () => {
+  it('fills and strokes a legacy parametric star with its original scaled outline', () => {
     const scene = createScene();
     scene.image = { source: createCanvas(120, 120) as unknown as CanvasImageSource, width: 120, height: 120, dataUrl: 'data:image/png;base64,AA==' };
     scene.objects.push({ id: 'old-star', type: 'symbol', name: 'star', points: 5, rect: { x: 10, y: 15, w: 80, h: 60 }, style: { color: '#123456', fill: '#00ff00', width: 7, opacity: 1 } });
@@ -273,8 +329,10 @@ describe('renderScene', () => {
     };
 
     expect(alphaIn('hand-stop', 25, 3, 55, 20)).toBeGreaterThan(0);
-    expect(alphaIn('hand-point-right', 80, 17, 18, 18)).toBeGreaterThan(0);
-    expect(alphaIn('hand-point-left', 2, 17, 18, 18)).toBeGreaterThan(0);
+    expect(alphaIn('hand-point-right', 0, 0, 100, 100)).toBeGreaterThan(0);
+    expect(alphaIn('hand-point-left', 0, 0, 100, 100)).toBeGreaterThan(0);
+    expect(renderSymbol('hand-point-right').getImageData(0, 0, 100, 100).data).not.toEqual(
+      renderSymbol('hand-point-left').getImageData(0, 0, 100, 100).data);
   });
 
   it('renders distinct arrowheads without using the shaft line cap at the tip', () => {

@@ -165,7 +165,7 @@
 .symbol-groups { max-height: 240px; overflow: auto; }
 .symbol-groups [data-symbol-group] { margin-top: 8px; }
 .symbol-groups strong { display: block; margin-bottom: 4px; font-size: 12px; }
-.symbol-preview { display: block; width: 23px; height: 23px; fill: currentColor; }
+.symbol-preview { display: block; width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .choice-row button[aria-pressed="true"], .choice-grid button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-hover); }
 .cap-preview { display: block; width: 32px; height: 20px; margin: auto; overflow: visible; }
 .join-preview { display: block; width: 44px; height: 36px; margin: auto; overflow: visible; }

@@ -1,6 +1,6 @@
 import type { Annotation, AnnotationStyle, CounterAnnotation, Scene, Tool } from './types';
 import type { Point, Rect, Viewport } from './geometry';
-import { MATERIAL_SYMBOLS } from './material-symbols';
+import { SYMBOLS } from './symbols';
 
 export const PROJECT_VERSION = 1;
 export const MAX_PROJECT_FILE_BYTES = 110_000_000;
@@ -54,14 +54,7 @@ export interface SerializedScene {
 }
 
 const tools: Tool[] = ['select', 'pan', 'rect', 'ellipse', 'line', 'arrow', 'pen', 'highlighter', 'text', 'counter', 'redaction', 'crop', 'image', 'symbol'];
-const symbols = [
-  'check', 'x', 'star', 'circle', 'triangle', 'square', 'diamond', 'hexagon',
-  'exclamation', 'question', 'info', 'warning', 'plus', 'minus', 'heart',
-  'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right',
-  'lightning', 'flag', 'pin', 'target', 'speech', 'eye',
-  'hand-stop', 'hand-point-left', 'hand-point-right',
-  ...Object.keys(MATERIAL_SYMBOLS),
-];
+const symbols = Object.keys(SYMBOLS);
 const arrowHeads = ['none', 'open', 'triangle', 'stealth', 'circle'];
 
 function record(value: unknown): value is Record<string, unknown> {

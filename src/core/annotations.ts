@@ -20,7 +20,7 @@ export function createAnnotation(id: string, type: Annotation['type'], start: Po
   if (type === 'text') return { id, type, position: start, text: '', fontFamily: 'Kalam', fontSize: 32, letterSpacing: 0, lineHeight: 1.2, fontWeight: 'normal', fontStyle: 'normal', underline: false, align: 'left', style: { ...style } };
   if (type === 'counter') return { id, type, position: start, n: 1, radius: 18, style: { ...style } };
   if (type === 'redaction') return { id, type, rect: { x: start.x, y: start.y, w: 0, h: 0 }, mode: 'pixelate', strength: 10, style: { ...style } };
-  if (type === 'symbol') return { id, type, paint: 'separate', rect: { x: start.x - 20, y: start.y - 20, w: 40, h: 40 }, name: 'check', style: { ...style } };
+  if (type === 'symbol') return { id, type, paint: 'separate', rect: { x: start.x - 20, y: start.y - 20, w: 40, h: 40 }, name: 'check', style: { ...style, fill: style.fill ?? null, stroke: style.stroke ?? true } };
   if (type === 'image') return { id, type, rect: { x: start.x, y: start.y, w: 0, h: 0 }, dataUrl: '', style: { ...style } };
   return { id, type, start, end: start, style: { ...style } };
 }

@@ -117,8 +117,10 @@ export function startApp(root: HTMLElement): void {
     toolStyles.set(previousTool, { ...previousStyle });
     previousTool = scene.activeTool;
     if (scene.toolStyle !== previousStyle) { previousStyle = scene.toolStyle; return; }
-    // A first visit carries over color and width only; fill and a disabled outline belong to the previous tool.
-    const toolStyle = toolStyles.get(scene.activeTool) ?? (scene.activeTool === 'symbol' || scene.activeTool === 'counter'
+    // A first visit carries over color; each tool starts with its own fill and outline defaults.
+    const toolStyle = toolStyles.get(scene.activeTool) ?? (scene.activeTool === 'symbol'
+      ? { ...previousStyle, width: 3, fill: null, stroke: true, opacity: 1 }
+      : scene.activeTool === 'counter'
       ? { ...previousStyle, fill: previousStyle.color, stroke: false, opacity: 1 }
       : { ...previousStyle, fill: undefined, stroke: true, opacity: 1 });
     previousStyle = toolStyle;

@@ -30,8 +30,7 @@ export function buildPreviewScene(scene: Scene, selected: Annotation | undefined
     label = value;
     return cap;
   };
-  // Symbols only draw an outline in separate paint mode with stroke enabled.
-  const outlined = source.type !== 'symbol' || (source.paint === 'separate' && source.style.stroke === true);
+  const outlined = source.type !== 'symbol' || source.paint !== 'separate' || source.style.stroke === true;
   const widthCap = outlined ? WIDTH_CAP[source.type] : undefined;
   const style = widthCap === undefined ? source.style : { ...source.style, width: capped(source.style.width, widthCap) };
   // Sample geometry never depends on size settings, so only the adjusted property changes in the tile.

@@ -221,20 +221,17 @@ test('polygon sides update a selected symbol and undo restores them', async ({ p
 test('symbol fill and outline width update the selected symbol and undo restores each change', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="symbol"]').click();
-  await page.locator('[data-choice-for="symbol"] [data-value="ring"]').click();
+  await page.locator('[data-choice-for="symbol"] [data-value="circle"]').click();
   await dragImage(page, [80, 60], [150, 130]);
   const original = (await saveScene(page)).objects[0];
-  expect(original.style).toMatchObject({ fill: original.style.color, stroke: false });
+  expect(original.style).toMatchObject({ fill: null, stroke: true });
   await page.locator('[data-color-presets="fill"] [data-color="#00b050"]').click();
   expect((await saveScene(page)).objects[0].style.fill).toBe('#00b050');
-  await page.getByRole('button', { name: 'Toggle stroke' }).click();
   await page.locator('[data-size-presets="width"] [data-value="12"]').click();
   expect((await saveScene(page)).objects[0].style).toMatchObject({ fill: '#00b050', stroke: true, width: 12 });
   await page.locator('#stage').focus();
   await page.keyboard.press('Control+z');
   expect((await saveScene(page)).objects[0].style).toMatchObject({ fill: '#00b050', stroke: true, width: original.style.width });
-  await page.keyboard.press('Control+z');
-  expect((await saveScene(page)).objects[0].style).toMatchObject({ fill: '#00b050', stroke: false });
   await page.keyboard.press('Control+z');
   expect((await saveScene(page)).objects[0].style.fill).toBe(original.style.fill);
 });
@@ -242,6 +239,7 @@ test('symbol fill and outline width update the selected symbol and undo restores
 test('symbol fill swatches apply to a multi-selection', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.locator('[data-choice-for="symbol"] [data-value="circle"]').click();
   await dragImage(page, [50, 40], [90, 80]);
   await page.locator('.toolrail [data-tool="symbol"]').click();
   await dragImage(page, [120, 90], [160, 130]);
@@ -253,6 +251,17 @@ test('symbol fill swatches apply to a multi-selection', async ({ page }) => {
   if (await page.locator('.optionsbar').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Tool options panel' }).click();
   await page.locator('[data-color-presets="fill"] [data-color="#00b050"]').click();
   expect((await saveScene(page)).objects.map((object: any) => object.style.fill)).toEqual(['#00b050', '#00b050']);
+});
+
+test('default open symbol disables fill', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
+  const fillToggle = page.getByRole('button', { name: 'Toggle fill' });
+  await expect(page.locator('[data-choice-for="symbol"] [data-value="check"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(fillToggle).toBeDisabled();
+  await expect(fillToggle).toHaveAttribute('title', 'Fill is available for closed symbols only');
+  await page.locator('[data-choice-for="symbol"] [data-value="circle"]').click();
+  await expect(fillToggle).toBeEnabled();
 });
 
 test('symbol search and arrow keys reach choices', async ({ page }) => {
@@ -445,13 +454,14 @@ test('keeps each tool style when leaving it with Escape or a shortcut key', asyn
   await loadImage(page);
   const strokeOn = page.getByRole('button', { name: 'Toggle stroke' });
   await page.locator('.toolrail [data-tool="symbol"]').click();
-  await expect(strokeOn).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('[data-choice-for="symbol"] [data-value="star"]').click();
+  await expect(strokeOn).toHaveAttribute('aria-pressed', 'true');
   await strokeOn.click();
   await page.locator('[data-color-presets="fill"] [data-color="#00b050"]').click();
   await page.locator('#stage').focus();
   await page.keyboard.press('Escape');
   await page.locator('.toolrail [data-tool="symbol"]').click();
-  await expect(strokeOn).toHaveAttribute('aria-pressed', 'true');
+  await expect(strokeOn).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('[data-style="fill"]')).toHaveValue('#00b050');
 
   await page.locator('.toolrail [data-tool="rect"]').click();
@@ -472,6 +482,7 @@ test('remembers a tool fill color while fill is turned off', async ({ page }) =>
   await page.locator('.toolrail [data-tool="rect"]').click();
   await expect(page.getByRole('button', { name: 'Toggle fill' })).toHaveAttribute('aria-pressed', 'false');
   await page.locator('.toolrail [data-tool="symbol"]').click();
+  await page.locator('[data-choice-for="symbol"] [data-value="star"]').click();
   await page.locator('[data-color-presets="fill"] [data-color="#ffff00"]').click();
   await page.getByRole('button', { name: 'Toggle fill' }).click();
   await drag(page, [-30, -30], [30, 30]);

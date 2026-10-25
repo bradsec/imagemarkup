@@ -38,6 +38,15 @@ describe('scene serialization', () => {
     expect(dto.objects[0]).toMatchObject({ type: 'symbol', name: 'hand-stop' });
   });
 
+  it('round-trips legacy symbols hidden from the picker', () => {
+    const scene = createScene();
+    scene.symbolName = 'rounded-square';
+    scene.objects.push({ id: 'ring', type: 'symbol', name: 'ring', rect: { x: 1, y: 2, w: 30, h: 40 }, style: { color: '#ff0000', width: 2, opacity: 1 } });
+    const dto = parseScene(serializeScene(scene));
+    expect(dto.symbolName).toBe('rounded-square');
+    expect(dto.objects[0]).toMatchObject({ type: 'symbol', name: 'ring' });
+  });
+
   it('preserves legacy symbol paint and explicit fill-off state', () => {
     const scene = createScene();
     scene.objects.push({ id: 'old', type: 'symbol', name: 'ring', rect: { x: 1, y: 2, w: 30, h: 40 }, style: { color: '#123456', width: 3, opacity: 1 } });
