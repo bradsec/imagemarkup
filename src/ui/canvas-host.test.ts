@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { constrainDrawPoint, constrainRotation, drawBounds, isTypingTarget, makeToolAnnotation, pinchViewport, wheelZoom } from './canvas-host';
+import { constrainDrawPoint, constrainRotation, drawBounds, isTypingTarget, makeToolAnnotation, pinchViewport, wheelZoom } from './canvas-interaction';
 import { createScene, type Scene } from '../core/types';
 import { imageToScreen, screenToImage } from '../core/geometry';
 

@@ -1,7 +1,7 @@
 import type { Annotation, Scene, Tool } from '../core/types';
 import { drawAnnotation } from '../render/renderer';
 import { drawRedaction } from '../render/redaction';
-import { makeToolAnnotation } from './canvas-host';
+import { makeToolAnnotation } from './canvas-interaction';
 
 const SIZE = 80;
 const PREVIEW_TOOLS: Tool[] = ['pen', 'highlighter', 'line', 'arrow', 'rect', 'ellipse', 'text', 'counter', 'symbol', 'redaction'];
