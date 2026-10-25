@@ -9,10 +9,14 @@ const PREVIEW_TOOLS: Tool[] = ['pen', 'highlighter', 'line', 'arrow', 'rect', 'e
 
 export interface PreviewScene {
   object: Annotation;
-  scale: number;
   /** Control value shown when the tile cannot draw the sample at true size. */
   sizeLabel: string | null;
 }
+
+// Largest sizes the 80px tile can draw at true scale; larger settings are drawn at the cap and labelled.
+const WIDTH_CAP: Partial<Record<Tool, number>> = { pen: 20, highlighter: 24, line: 16, arrow: 8, rect: 14, ellipse: 14, symbol: 14 };
+const FONT_CAP = 44;
+const RADIUS_CAP = 30;
 
 export function buildPreviewScene(scene: Scene, selected: Annotation | undefined): PreviewScene | null {
   if (selected?.locked) return null;
@@ -20,32 +24,39 @@ export function buildPreviewScene(scene: Scene, selected: Annotation | undefined
   if (!PREVIEW_TOOLS.includes(tool)) return null;
   const initial = makeToolAnnotation('options-preview', { ...scene, activeTool: tool }, { x: 40, y: 40 }, true);
   const source = selected ?? initial;
+  let label: number | null = null;
+  const capped = (value: number, cap: number): number => {
+    if (value <= cap) return value;
+    label = value;
+    return cap;
+  };
+  // Symbols only draw an outline in separate paint mode with stroke enabled.
+  const outlined = source.type !== 'symbol' || (source.paint === 'separate' && source.style.stroke === true);
+  const widthCap = outlined ? WIDTH_CAP[source.type] : undefined;
+  const style = widthCap === undefined ? source.style : { ...source.style, width: capped(source.style.width, widthCap) };
+  // Sample geometry never depends on size settings, so only the adjusted property changes in the tile.
   const object: Annotation = (() => {
     switch (source.type) {
-      case 'pen': case 'highlighter':
-        return { ...source, points: [{ x: 12, y: 52 }, { x: 21, y: 24 }, { x: 40, y: 27 }, { x: 59, y: 56 }, { x: 68, y: 28 }] };
-      case 'line': case 'arrow': return { ...source, start: { x: 20, y: 59 }, end: { x: 60, y: 21 } };
-      case 'rect': case 'ellipse': case 'symbol': return { ...source, rect: { x: 20, y: 20, w: 40, h: 40 } };
-      case 'text': return { ...source, position: { x: 16, y: 34 }, text: 'Aa\nAa' };
-      case 'counter': return { ...source, position: { x: 40, y: 40 } };
+      case 'pen':
+        return { ...source, style, points: [{ x: 12, y: 52 }, { x: 21, y: 24 }, { x: 40, y: 27 }, { x: 59, y: 56 }, { x: 68, y: 28 }] };
+      case 'highlighter': return { ...source, style, points: [{ x: 8, y: 41 }, { x: 72, y: 41 }] };
+      case 'line': case 'arrow': return { ...source, style, start: { x: 14, y: 64 }, end: { x: 66, y: 16 } };
+      case 'rect': case 'ellipse': case 'symbol': return { ...source, style, rect: { x: 20, y: 20, w: 40, h: 40 } };
+      case 'text': return { ...source, position: { x: 16, y: 40 }, text: 'Aa', fontSize: capped(source.fontSize, FONT_CAP) };
+      case 'counter': {
+        const radius = capped(source.radius, RADIUS_CAP);
+        const fontSize = (source.fontSize ?? 18) * radius / source.radius;
+        return { ...source, position: { x: 40, y: 40 }, radius, fontSize };
+      }
       case 'redaction': return { ...source, rect: { x: 8, y: 8, w: 64, h: 64 } };
       default: return source;
     }
   })();
   if (object.type === 'text') {
-    // Center the sample on its measured bounds so scaling around the tile center keeps it in view.
     const bounds = annotationBounds(object);
     object.position = { x: object.position.x + 40 - (bounds.x + bounds.w / 2), y: object.position.y + 40 - (bounds.y + bounds.h / 2) };
   }
-  const width = object.style.width;
-  const extent = object.type === 'counter' ? object.radius * 2
-    : object.type === 'text' ? Math.max(object.fontSize * (object.lineHeight ?? 1.2) * 2, object.fontSize * 2.5 + Math.max(0, object.letterSpacing ?? 0) * 2)
-    : object.type === 'arrow' ? 52 + width * 6
-    : 52 + width;
-  const scale = Math.min(1, 68 / extent);
-  const size = object.type === 'text' ? object.fontSize : object.type === 'counter' ? object.radius : width;
-  const labelled = object.type !== 'redaction' && (scale < 1 || (width > 24 && object.type !== 'text' && object.type !== 'counter'));
-  return { object, scale, sizeLabel: labelled ? `${Math.round(size)} px` : null };
+  return { object, sizeLabel: label === null ? null : `${Math.round(label)} px` };
 }
 
 export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement, getScene: () => Scene, getSelected: () => Annotation | undefined): () => void {
@@ -66,7 +77,7 @@ export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement
     ctx.clearRect(0, 0, SIZE, SIZE);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, SIZE, SIZE);
-    const { object, scale } = preview;
+    const { object } = preview;
     if (object.type === 'redaction') {
       const key = `${object.mode}:${object.strength}:${object.style.fill}:${pixels}`;
       if (key !== redactionKey || !redactionSample) {
@@ -74,11 +85,12 @@ export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement
         redactionSample.width = redactionSample.height = pixels;
         const sampleCtx = redactionSample.getContext('2d')!;
         sampleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Large color areas keep strong pixelate and blur settings visible in the tile.
         sampleCtx.fillStyle = '#ffffff'; sampleCtx.fillRect(0, 0, SIZE, SIZE);
+        sampleCtx.fillStyle = '#e96655'; sampleCtx.fillRect(8, 40, 32, 32);
+        sampleCtx.fillStyle = '#3a83bc'; sampleCtx.fillRect(40, 40, 32, 32);
         sampleCtx.fillStyle = '#1d2630'; sampleCtx.font = 'bold 14px sans-serif';
-        sampleCtx.fillText('Sample', 9, 32); sampleCtx.fillText('123 ABC', 9, 51);
-        sampleCtx.fillStyle = '#e96655'; sampleCtx.fillRect(8, 59, 30, 9);
-        sampleCtx.fillStyle = '#3a83bc'; sampleCtx.fillRect(40, 59, 32, 9);
+        sampleCtx.fillText('Sample', 9, 24); sampleCtx.fillText('123', 9, 38);
         const source = document.createElement('canvas');
         source.width = source.height = pixels;
         source.getContext('2d')!.drawImage(redactionSample, 0, 0);
@@ -91,13 +103,11 @@ export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement
       return;
     }
     if (object.type === 'highlighter') {
-      ctx.fillStyle = '#26333f'; ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('Sample', 8, 46);
+      // Dark sample text under the stroke shows the highlighter's blend and opacity.
+      ctx.fillStyle = '#26333f'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Sample', 40, 41);
     }
     ctx.save();
-    ctx.translate(40, 40);
-    ctx.scale(scale, scale);
-    ctx.translate(-40, -40);
     drawAnnotation(ctx, object);
     ctx.restore();
     if (preview.sizeLabel) {

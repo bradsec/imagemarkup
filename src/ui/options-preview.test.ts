@@ -16,32 +16,47 @@ describe('buildPreviewScene', () => {
     }
   });
 
-  it('fits oversized strokes and uses the selected object style', () => {
+  it('keeps sample geometry fixed and draws widths at true size until the tile cap', () => {
+    const scene = createScene();
+    scene.activeTool = 'arrow';
+    scene.toolStyle.width = 2;
+    const thin = buildPreviewScene(scene, undefined)!;
+    scene.toolStyle.width = 6;
+    const thick = buildPreviewScene(scene, undefined)!;
+    expect(thick.object).toMatchObject({ start: (thin.object as { start: unknown }).start, end: (thin.object as { end: unknown }).end });
+    expect(thick.object.style.width).toBe(6);
+    expect(thick.sizeLabel).toBeNull();
+    scene.toolStyle.width = 40;
+    const capped = buildPreviewScene(scene, undefined)!;
+    expect(capped.object.style.width).toBeLessThan(40);
+    expect(capped.sizeLabel).toBe('40 px');
+  });
+
+  it('uses the selected object style and hides locked selections', () => {
     const scene = createScene();
     scene.activeTool = 'pen';
-    scene.toolStyle.width = 120;
-    const wide = buildPreviewScene(scene, undefined)!;
-    expect(wide.scale).toBeLessThan(1);
-    expect(wide.sizeLabel).toBe('120 px');
-    const selected = { ...wide.object, style: { ...wide.object.style, width: 8, color: '#123456' } };
-    const preview = buildPreviewScene(scene, selected)!;
-    expect(preview.object.style).toEqual(selected.style);
-    expect(preview.scale).toBe(1);
+    const base = buildPreviewScene(scene, undefined)!;
+    const selected = { ...base.object, style: { ...base.object.style, width: 8, color: '#123456' } };
+    expect(buildPreviewScene(scene, selected)!.object.style).toEqual(selected.style);
     expect(buildPreviewScene(scene, { ...selected, locked: true })).toBeNull();
   });
 
-  it('labels the control value whenever the sample is drawn below true size', () => {
+  it('shows text and counter sizes at true size until the tile cap, then labels them', () => {
     const scene = createScene();
-    scene.activeTool = 'text'; scene.fontSize = 300;
-    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBe('300 px');
-    scene.fontSize = 12;
-    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
-    scene.activeTool = 'counter'; scene.counterSize = 64;
-    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBe('64 px');
-    scene.activeTool = 'arrow'; scene.toolStyle.width = 12;
-    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBe('12 px');
-    scene.activeTool = 'rect'; scene.toolStyle.width = 4;
-    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
+    scene.activeTool = 'text';
+    const sizes = [8, 20, 40].map((fontSize) => { scene.fontSize = fontSize; return buildPreviewScene(scene, undefined)!; });
+    expect(sizes.map((preview) => (preview.object as { fontSize: number }).fontSize)).toEqual([8, 20, 40]);
+    expect(sizes.every((preview) => preview.sizeLabel === null)).toBe(true);
+    scene.fontSize = 300;
+    const big = buildPreviewScene(scene, undefined)!;
+    expect((big.object as { fontSize: number }).fontSize).toBeLessThan(300);
+    expect(big.sizeLabel).toBe('300 px');
+    scene.activeTool = 'counter'; scene.counterSize = 12;
+    expect(buildPreviewScene(scene, undefined)).toMatchObject({ object: { radius: 12 }, sizeLabel: null });
+    scene.counterSize = 64;
+    const counter = buildPreviewScene(scene, undefined)!;
+    expect((counter.object as { radius: number }).radius).toBeLessThan(64);
+    expect(counter.sizeLabel).toBe('64 px');
     scene.activeTool = 'redaction';
     expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
   });
@@ -55,15 +70,5 @@ describe('buildPreviewScene', () => {
       expect(bounds.x + bounds.w / 2).toBeCloseTo(40);
       expect(bounds.y + bounds.h / 2).toBeCloseTo(40);
     }
-  });
-
-  it('fits large counter and text samples in the tile', () => {
-    const scene = createScene();
-    scene.activeTool = 'counter'; scene.counterSize = 80;
-    expect(buildPreviewScene(scene, undefined)?.scale).toBeLessThan(1);
-    scene.activeTool = 'text'; scene.fontSize = 200;
-    expect(buildPreviewScene(scene, undefined)?.scale).toBeLessThan(1);
-    scene.activeTool = 'arrow'; scene.toolStyle.width = 40;
-    expect(buildPreviewScene(scene, undefined)?.scale).toBeLessThan(.3);
   });
 });
