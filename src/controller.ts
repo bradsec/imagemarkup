@@ -130,7 +130,8 @@ export function startApp(root: HTMLElement): void {
   root.querySelector<HTMLButtonElement>('[data-action="new-project"]')!.addEventListener('click', () => {
     const scene = store.get();
     if ((scene.image || scene.objects.length > 0) && !window.confirm('Start a new project? This clears the current image and markup.')) return;
-    canvasHost.setScene(createScene(), true);
+    // A new project is a clean start: history is cleared so Undo cannot bring back the previous image.
+    canvasHost.setScene(createScene(), false);
     statusEl.textContent = 'New project';
   });
   root.querySelector<HTMLButtonElement>('[data-action="delete"]')!.addEventListener('click', canvasHost.deleteSelected);

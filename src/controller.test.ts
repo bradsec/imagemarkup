@@ -55,6 +55,17 @@ describe('controller regressions', () => {
     expect(root.querySelector<HTMLButtonElement>('[data-action="fit"]')?.disabled).toBe(false);
   });
 
+  it('hides the tool rail and disables document actions while nothing is loaded', () => {
+    const root = app();
+    const rail = root.querySelector<HTMLElement>('.toolrail')!;
+    expect(rail.hasAttribute('data-empty')).toBe(true);
+    for (const action of ['zoom-in', 'zoom-out', 'save-project', 'export']) expect(root.querySelector<HTMLButtonElement>(`[data-action="${action}"]`)?.disabled).toBe(true);
+    mocks.store!.set({ image: { source: document.createElement('canvas'), width: 100, height: 100, dataUrl: 'data:image/png;base64,AA==' } });
+    expect(rail.hasAttribute('data-empty')).toBe(false);
+    mocks.store!.set({ image: null });
+    expect(rail.hasAttribute('data-empty')).toBe(true);
+  });
+
   it('OWNER-4 keeps Undo available after an undoable replacement leaves no image', () => {
     const root = app();
     mocks.host.canUndo.mockReturnValue(true);
@@ -236,6 +247,15 @@ describe('controller regressions', () => {
     dialog.dispatchEvent(new Event('cancel'));
     dialog.close();
     expect(mocks.host.checkpointScene).not.toHaveBeenCalled();
+  });
+
+  it('starts a new project with cleared history so Undo cannot restore the old image', () => {
+    const root = app();
+    mocks.store!.set({ image: { source: document.createElement('canvas'), width: 100, height: 100, dataUrl: 'data:image/png;base64,AA==' } });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    root.querySelector<HTMLButtonElement>('[data-action="new-project"]')!.click();
+    expect(mocks.host.setScene).toHaveBeenCalledWith(expect.objectContaining({ image: null, objects: [] }), false);
+    confirm.mockRestore();
   });
 
   it('UX-01 and CODE-02 confirm a project replacement and make it undoable', async () => {
