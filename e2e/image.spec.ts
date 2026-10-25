@@ -287,3 +287,13 @@ test('preserves an image watermark when frame settings are reopened and reapplie
   await page.locator('#frame-dialog button[value="remove-watermark"]').click();
   expect((await saveScene(page)).watermark).toBeNull();
 });
+
+test('fits every tool option row inside the desktop options panel', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'webkit-iphone', 'iPhone layouts are covered by iphone-overlays.spec.ts');
+  await loadImage(page);
+  for (const tool of ['pen', 'highlighter', 'line', 'arrow', 'rect', 'ellipse', 'text', 'counter', 'symbol', 'redaction']) {
+    await page.locator(`.toolrail [data-tool="${tool}"]`).click();
+    const overflow = await page.locator('.optionsbar').evaluate((bar) => bar.scrollWidth - bar.clientWidth);
+    expect(overflow, `${tool} options overflow`).toBeLessThanOrEqual(0);
+  }
+});
