@@ -3,15 +3,14 @@ import type { Annotation, LoadedImage, Scene } from '../core/types';
 import { annotationBounds, annotationHandles, appendPathPoints, hitHandle, hitTest, moveAnnotation, rectFromPoints, resizeAnnotation, resizeFromHandle, type AnnotationHandle } from '../core/annotations';
 import { AnnotationHistory, sceneSources } from '../core/history';
 import type { Store } from '../state/store';
-import { decodeImageFile, fileFromDataTransfer } from '../io/load-image';
 import { renderScene, type Surface } from '../render/renderer';
-import { fitViewport, panBy, zoomAt } from '../core/viewport';
+import { panBy, zoomAt } from '../core/viewport';
 import { translateAnnotation } from '../core/transform';
 import { clampCrop, cropFromDrag, moveCrop } from '../core/crop-geometry';
-import { MAX_PROJECT_IMAGE_DATA_LENGTH, projectImageDataLength } from '../core/serialize';
 
 import { createInlineTextEditor } from './text-editor';
 import { createToolPreview } from './tool-preview';
+import { createImageInput } from './image-input';
 import { HANDLE_CURSORS, constrainRotation, drawBounds, isTypingTarget, makeToolAnnotation, pinchViewport, rectsIntersect, wheelZoom } from './canvas-interaction';
 
 
@@ -51,16 +50,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   const toolPreview = createToolPreview(preview);
 
   const emptyState = host.querySelector<HTMLElement>('.empty-state');
-  const errorNotice = host.querySelector<HTMLElement>('.load-error')!;
-  const errorText = errorNotice.querySelector<HTMLElement>('[role="alert"]')!;
-  const clearError = () => { errorNotice.hidden = true; errorText.textContent = ''; };
-  const showError = (message: string) => { errorNotice.hidden = false; errorText.textContent = message; };
-  errorNotice.querySelector('button')!.addEventListener('click', clearError);
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'image/*';
-  fileInput.hidden = true;
-  host.appendChild(fileInput);
 
   const surface = (): Surface => ({ width: canvas.width, height: canvas.height, ctx });
   const draw = () => {
@@ -80,18 +69,12 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     renderScene(surface(), view);
   };
   const history = new AnnotationHistory();
+  const imageInput = createImageInput({ host, canvas, store, history, emptyState, replaceScene: (next, undoable) => replaceScene(next, undoable), onStatus });
   const textEditor = createInlineTextEditor({
     host, store, history, draw: () => draw(),
     onEscape: () => { colorCallback = null; delete host.dataset.eyedropper; },
   });
   let canvasSize: { width: number; height: number } | null = null;
-  let fileIntent: 'replace' | 'place' = 'replace';
-  const openImage = (intent: 'replace' | 'place' = 'replace') => {
-    fileIntent = intent;
-    fileInput.value = '';
-    fileInput.click();
-  };
-  let loadGeneration = 0;
 
   function replaceScene(next: Scene, undoable = false): void {
     gesture = null;
@@ -184,72 +167,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   function anchorFromEvent(e: Pick<PointerEvent | WheelEvent, 'clientX' | 'clientY'>): Point {
     const rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  }
-
-  function centerImage(img: LoadedImage): boolean {
-    const scene = store.get();
-    if ((scene.image || scene.objects.length) && !window.confirm('Open a new image? This replaces the current image and markup.')) return false;
-    const rect = host.getBoundingClientRect();
-    replaceScene({ ...scene,
-      image: img,
-      viewport: fitViewport(img.width, img.height, rect.width || canvas.width, rect.height || canvas.height),
-      objects: [],
-      selectedId: null,
-      selectedIds: [],
-      marquee: null,
-      crop: null,
-      border: null,
-      watermark: null,
-    }, true);
-    return true;
-  }
-
-  async function load(file: File, intent: 'replace' | 'place'): Promise<void> {
-    const generation = ++loadGeneration;
-    onStatus?.('Loading image...');
-    try {
-      const img = await decodeImageFile(file, intent === 'place'
-        ? MAX_PROJECT_IMAGE_DATA_LENGTH - projectImageDataLength(store.get())
-        : MAX_PROJECT_IMAGE_DATA_LENGTH);
-      if (generation !== loadGeneration) {
-        (img.source as ImageBitmap).close?.();
-        return;
-      }
-      const scene = store.get();
-      if (scene.image && intent === 'place') {
-        if (projectImageDataLength(scene) + img.dataUrl.length > MAX_PROJECT_IMAGE_DATA_LENGTH) {
-          (img.source as ImageBitmap).close?.();
-          throw new Error('Image data is too large for a project');
-        }
-        const maxWidth = scene.image.width / 2;
-        const scale = Math.min(1, maxWidth / img.width);
-        const w = img.width * scale;
-        const h = img.height * scale;
-        history.record(scene);
-        const id = crypto.randomUUID();
-        store.set({
-          objects: [...scene.objects, { id, type: 'image', rect: { x: (scene.image.width - w) / 2, y: (scene.image.height - h) / 2, w, h }, dataUrl: img.dataUrl, source: img.source, style: { ...scene.toolStyle } }],
-          selectedId: id,
-          selectedIds: [],
-          toolStyle: { ...scene.toolStyle, opacity: 1 },
-        });
-        onStatus?.('Image added');
-        clearError();
-        return;
-      }
-      if (!centerImage(img)) {
-        (img.source as ImageBitmap).close?.();
-        onStatus?.('Image open cancelled');
-        return;
-      }
-      if (emptyState) emptyState.style.display = 'none';
-      clearError();
-      onStatus?.(`${img.width} x ${img.height}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      showError(['Unsupported image type', 'Choose an image under 100 MB', 'Image dimensions are too large', 'Image data is too large for a project', 'Could not decode that image', 'Could not read that image'].includes(message) ? message : 'Could not load that image');
-      onStatus?.('Image load failed');
-    }
   }
 
   host.addEventListener('wheel', (e) => {
@@ -493,7 +410,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
         gesture = { kind: 'crop', start: image };
       }
     } else if (scene.activeTool === 'image') {
-      openImage('place');
+      imageInput.openImage('place');
       return;
     } else {
       const id = crypto.randomUUID();
@@ -734,31 +651,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     const object = hitTest(scene.objects, screenToImage(screen, scene.viewport), 8 / scene.viewport.scale);
     if (object?.type === 'text') textEditor.edit(object.id, true, screen);
   });
-
-  fileInput.addEventListener('change', async () => {
-    const file = fileFromDataTransfer(null, fileInput.files) ?? fileInput.files?.[0];
-    if (file) await load(file, fileIntent);
-  });
-
-  host.addEventListener('dragover', (e) => e.preventDefault());
-  host.addEventListener('dragenter', (e) => {
-    if (e.dataTransfer?.types.includes('Files')) host.classList.add('dragover');
-  });
-  host.addEventListener('dragleave', (e) => {
-    if (!(e.relatedTarget instanceof Node) || !host.contains(e.relatedTarget)) host.classList.remove('dragover');
-  });
-  host.addEventListener('dragend', () => host.classList.remove('dragover'));
-  host.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    host.classList.remove('dragover');
-    const file = fileFromDataTransfer(e.dataTransfer?.items ?? null, e.dataTransfer?.files ?? null) ?? e.dataTransfer?.files?.[0];
-    if (file) await load(file, store.get().image && store.get().activeTool === 'image' ? 'place' : 'replace');
-  });
-
-  window.addEventListener('paste', async (e) => {
-    const file = fileFromDataTransfer(e.clipboardData?.items ?? null, null);
-    if (file) await load(file, store.get().image && store.get().activeTool === 'image' ? 'place' : 'replace');
-  });
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe(host);
   store.subscribe(() => { draw(); requestPreview(); });
@@ -766,9 +658,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
 
   return {
     setImage(img) {
-      if (!centerImage(img)) return;
-      if (emptyState) emptyState.style.display = 'none';
-      clearError();
+      imageInput.setImage(img);
     },
     undo,
     redo,
@@ -789,7 +679,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       if (colorCallback) host.dataset.eyedropper = 'true';
       else delete host.dataset.eyedropper;
     },
-    openImage,
+    openImage: imageInput.openImage,
     duplicateSelected() {
       duplicateSelected();
     },
