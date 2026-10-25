@@ -348,7 +348,7 @@ test.describe('mobile layout', () => {
     await expect(page.getByRole('button', { name: /Export image/ })).toBeInViewport();
   });
 
-  test('resizes from a visible handle with touch while the drawing tool stays active', async ({ page }) => {
+  test('resizes a new shape from a visible handle with touch after switching to Move', async ({ page }) => {
     await loadImage(page);
     await page.locator('.toolrail [data-tool="rect"]').click();
     await page.getByRole('button', { name: 'Collapse Tool options panel' }).click();
@@ -375,7 +375,7 @@ test.describe('mobile layout', () => {
     });
 
     const scene = await saveScene(page);
-    expect(scene.activeTool).toBe('rect');
+    expect(scene.activeTool).toBe('select');
     expect(scene.objects).toHaveLength(1);
     expect(scene.objects[0].rect.w).toBeGreaterThan(120);
     expect(scene.objects[0].rect.h).toBeGreaterThan(80);

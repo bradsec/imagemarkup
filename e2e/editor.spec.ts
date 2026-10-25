@@ -25,19 +25,38 @@ test('Space pans from focused controls without drawing or activating the focused
   await expect(page.locator('.toolrail [data-tool="rect"]')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('shows a hover ghost over the artboard and hides it on leave', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
+test('does not draw a hover ghost over the artboard', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'webkit-iphone', 'Hover requires a pointer');
   await loadImage(page);
-  await page.locator('.toolrail [data-tool="pen"]').click();
+  await page.locator('.toolrail [data-tool="counter"]').click();
   const center = await canvasCenter(page);
   await page.mouse.move(center.x, center.y);
-  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
-  await page.mouse.move(0, 0);
-  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'false');
-  await page.locator('.toolrail [data-tool="rect"]').click();
-  await page.mouse.move(center.x, center.y);
-  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
+  await expect(page.locator('.stage-host > canvas')).toHaveCount(1);
   expect((await saveScene(page)).objects).toHaveLength(0);
+});
+
+test('switches shapes to Move and selects them, but keeps pen and counter active', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="rect"]').click();
+  await drag(page, [-60, -40], [0, 0]);
+  let scene = await saveScene(page);
+  expect(scene.activeTool).toBe('select');
+  expect(scene.selectedId).toBe(scene.objects[0].id);
+
+  await page.locator('.toolrail [data-tool="pen"]').click();
+  await drag(page, [10, 10], [50, 30]);
+  scene = await saveScene(page);
+  expect(scene.activeTool).toBe('pen');
+  expect(scene.selectedId).toBeNull();
+
+  await page.locator('.toolrail [data-tool="counter"]').click();
+  const center = await canvasCenter(page);
+  await page.mouse.click(center.x + 80, center.y - 60);
+  await page.mouse.click(center.x + 110, center.y - 60);
+  scene = await saveScene(page);
+  expect(scene.activeTool).toBe('counter');
+  expect(scene.selectedId).toBeNull();
+  expect(scene.objects.filter((object: { type: string }) => object.type === 'counter')).toHaveLength(2);
 });
 
 test('creates every drawing and content tool with the expected object type', async ({ page }) => {
@@ -155,7 +174,7 @@ test('uses Shift and Alt or Option modifiers while resizing', async ({ page }) =
   let rotateCursor = '';
   for (let offset = -50; offset >= -150 && !rotateCursor.includes('data:image/svg+xml'); offset -= 4) {
     await page.mouse.move(center.x, center.y + offset);
-    rotateCursor = await page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((canvas) => canvas.style.cursor);
+    rotateCursor = await page.locator('.stage-host > canvas').evaluate((canvas) => canvas.style.cursor);
   }
   if (await page.evaluate(() => matchMedia('(pointer: fine)').matches)) expect(rotateCursor).toContain('data:image/svg+xml');
 
@@ -175,16 +194,17 @@ test('uses Shift and Alt or Option modifiers while resizing', async ({ page }) =
   expect(bounds.y + bounds.h / 2).toBeCloseTo(120, 3);
 });
 
-test('keeps drawing tools active and selects finished shapes', async ({ page }) => {
+test('selects finished shapes under Move and redraws after picking the tool again', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="rect"]').click();
   await drag(page, [-80, -50], [80, 50]);
 
   let scene = await saveScene(page);
   expect(scene.objects).toHaveLength(1);
-  expect(scene.activeTool).toBe('rect');
+  expect(scene.activeTool).toBe('select');
   expect(scene.selectedId).toBe(scene.objects[0].id);
 
+  await page.locator('.toolrail [data-tool="rect"]').click();
   await drag(page, [-140, -90], [-100, -60]);
   scene = await saveScene(page);
   expect(scene.objects).toHaveLength(2);
@@ -273,7 +293,7 @@ test('applies independent arrowheads and rotates a line from its rotation handle
 
   await page.locator('.toolrail [data-tool="select"]').click();
   scene = await saveScene(page);
-  let canvas = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
+  let canvas = await page.locator('.stage-host > canvas').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   const initialCanvas = canvas;
   const arrow = scene.objects[0];
@@ -284,12 +304,12 @@ test('applies independent arrowheads and rotates a line from its rotation handle
   await page.mouse.click(lineCenter.x, lineCenter.y);
   scene = await saveScene(page);
   expect(scene.selectedId).toBe(scene.objects[0].id);
-  canvas = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
+  canvas = await page.locator('.stage-host > canvas').boundingBox();
   if (!canvas) throw new Error('Canvas is not visible');
   const selectedToScreen = (point: { x: number; y: number }) => ({ x: canvas!.x + scene.viewport.tx + point.x * scene.viewport.scale, y: canvas!.y + scene.viewport.ty + point.y * scene.viewport.scale });
   const endPoint = selectedToScreen(arrow.end);
   await page.mouse.move(endPoint.x, endPoint.y);
-  await expect(page.locator('.stage-host > canvas:not(.tool-preview)')).toHaveCSS('cursor', 'move');
+  await expect(page.locator('.stage-host > canvas')).toHaveCSS('cursor', 'move');
   const grip = selectedToScreen({ x: center.x, y: center.y - padding - 24 });
   const rotated = selectedToScreen({ x: center.x + padding + 24, y: center.y });
   await page.mouse.move(grip.x, grip.y);
@@ -453,8 +473,10 @@ test('duplicates selected artwork with Control+D and one undo step', async ({ pa
 
 test('uses Shift for contiguous layer ranges and Control for individual rows', async ({ page }) => {
   await loadImage(page);
-  await page.locator('.toolrail [data-tool="rect"]').click();
-  for (let index = 0; index < 5; index++) await drag(page, [-140 + index * 45, -70], [-110 + index * 45, -40]);
+  for (let index = 0; index < 5; index++) {
+    await page.locator('.toolrail [data-tool="rect"]').click();
+    await drag(page, [-140 + index * 45, -70], [-110 + index * 45, -40]);
+  }
 
   const panel = page.locator('.layers-panel');
   if (await panel.getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Layers panel' }).click();

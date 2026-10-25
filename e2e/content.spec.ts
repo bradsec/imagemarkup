@@ -1,8 +1,7 @@
 import { expect } from '@playwright/test';
-import { createCanvas, loadImage as loadCanvasImage } from '@napi-rs/canvas';
 import { readFile } from 'node:fs/promises';
 import { annotationBounds } from '../src/core/annotations';
-import { test, fixtureContext, loadImage, canvasCenter, drag, imagePoint, dragImage, saveScene, previewBounds } from './editor-helpers';
+import { test, loadImage, canvasCenter, drag, imagePoint, dragImage, saveScene } from './editor-helpers';
 
 test('pen options preview stays in the panel and changes with width', async ({ page }) => {
   await loadImage(page);
@@ -25,34 +24,11 @@ test('pen options preview stays in the panel and changes with width', async ({ p
   await expect(tile).toBeHidden();
 });
 
-test('redaction ghost renders the effect and responds to strength without exporting it', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
+test('redaction drag previews the effect on the scene', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="redaction"]').click();
   const center = await canvasCenter(page);
-  await page.mouse.move(center.x, center.y);
-  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
-  const sample = () => page.locator('.tool-preview').evaluate((element) => {
-    const canvas = element as HTMLCanvasElement;
-    const ctx = canvas.getContext('2d')!;
-    const x = Math.floor(canvas.width / 2), y = Math.floor(canvas.height / 2);
-    return [...ctx.getImageData(x - 15, y - 15, 30, 30).data];
-  });
-  const weak = await sample();
-  expect(weak.some((value, index) => index % 4 !== 3 && value !== 0)).toBe(true);
-  await page.locator('[data-style="redaction-strength"]').fill('40');
-  await expect.poll(async () => JSON.stringify(await sample())).not.toBe(JSON.stringify(weak));
-  expect((await saveScene(page)).objects).toHaveLength(0);
-  await page.locator('.topbar-actions [data-action="export"]').click();
-  const download = page.waitForEvent('download');
-  await page.locator('#export-dialog button[value="download"]').click();
-  const path = await (await download).path();
-  if (!path) throw new Error('PNG download path unavailable');
-  const exported = createCanvas(320, 240);
-  exported.getContext('2d').drawImage(await loadCanvasImage(path), 0, 0);
-  expect([...exported.getContext('2d').getImageData(0, 0, 320, 240).data])
-    .toEqual([...fixtureContext.getImageData(0, 0, 320, 240).data]);
-  const scenePixels = () => page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((element) => {
+  const scenePixels = () => page.locator('.stage-host > canvas').evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
     const x = Math.floor(canvas.width / 2), y = Math.floor(canvas.height / 2);
     return [...canvas.getContext('2d')!.getImageData(x - 15, y - 15, 30, 30).data];
@@ -65,43 +41,14 @@ test('redaction ghost renders the effect and responds to strength without export
   await page.mouse.up();
 });
 
-test('counter ghost follows format and size and matches the placed counter bounds', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === 'webkit-iphone', 'Hover preview requires a pointer');
+test('places counters with the selected format and size', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="counter"]').click();
-  const center = await canvasCenter(page);
-  await page.mouse.move(center.x, center.y);
-  await expect(page.locator('.tool-preview')).toHaveAttribute('data-visible', 'true');
-  const first = await previewBounds(page);
   await page.locator('[data-choice-for="counter-format"] [data-value="roman"]').click();
   await page.locator('[data-style="counter-size"]').fill('32');
-  await page.mouse.move(center.x, center.y);
-  await expect.poll(async () => (await previewBounds(page))?.w).toBeGreaterThan(first!.w);
-  const ghost = await previewBounds(page);
-  await page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((element) => {
-    const canvas = element as HTMLCanvasElement;
-    (canvas as HTMLCanvasElement & { beforePlacement?: Uint8ClampedArray }).beforePlacement = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
-  });
+  const center = await canvasCenter(page);
   await page.mouse.click(center.x, center.y);
-  const scene = await saveScene(page);
-  expect(scene.objects[0]).toMatchObject({ type: 'counter', format: 'roman', radius: 32 });
-  await page.keyboard.press('Escape');
-  const placed = await page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((element) => {
-    const canvas = element as HTMLCanvasElement;
-    const before = (canvas as HTMLCanvasElement & { beforePlacement?: Uint8ClampedArray }).beforePlacement!;
-    const after = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
-    let left = canvas.width, top = canvas.height, right = -1, bottom = -1;
-    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
-      const index = (y * canvas.width + x) * 4;
-      if (before[index] === after[index] && before[index + 1] === after[index + 1] && before[index + 2] === after[index + 2]) continue;
-      left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
-    }
-    return { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
-  });
-  expect(Math.abs(ghost!.x - placed.x)).toBeLessThanOrEqual(2);
-  expect(Math.abs(ghost!.y - placed.y)).toBeLessThanOrEqual(2);
-  expect(Math.abs(ghost!.w - placed.w)).toBeLessThanOrEqual(2);
-  expect(Math.abs(ghost!.h - placed.h)).toBeLessThanOrEqual(2);
+  expect((await saveScene(page)).objects[0]).toMatchObject({ type: 'counter', format: 'roman', radius: 32 });
 });
 
 test('supports multiline text and independent counter sequence, shape, and font sizes', async ({ page }) => {
@@ -296,6 +243,7 @@ test('symbol fill swatches apply to a multi-selection', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="symbol"]').click();
   await dragImage(page, [50, 40], [90, 80]);
+  await page.locator('.toolrail [data-tool="symbol"]').click();
   await dragImage(page, [120, 90], [160, 130]);
   if (await page.locator('.layers-panel').getAttribute('data-collapsed') === 'true') await page.getByRole('button', { name: 'Expand Layers panel' }).click();
   const rows = page.locator('[data-layer-type="symbol"] [data-action="select-layer"]');
@@ -542,6 +490,7 @@ test('starts unvisited drawing tools at full opacity independently of translucen
   await expect(page.locator('[data-style="opacity"]')).toHaveValue('100');
   await page.locator('[data-style="opacity"]').fill('35');
   await drag(page, [-80, -40], [-20, 20]);
+  await page.locator('.toolrail [data-tool="rect"]').click();
   await drag(page, [20, -40], [80, 20]);
 
   await page.locator('.toolrail [data-tool="symbol"]').click();

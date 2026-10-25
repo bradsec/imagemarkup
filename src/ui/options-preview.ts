@@ -22,7 +22,7 @@ export function buildPreviewScene(scene: Scene, selected: Annotation | undefined
   if (selected?.locked) return null;
   const tool = selected?.type ?? scene.activeTool;
   if (!PREVIEW_TOOLS.includes(tool)) return null;
-  const initial = makeToolAnnotation('options-preview', { ...scene, activeTool: tool }, { x: 40, y: 40 }, true);
+  const initial = makeToolAnnotation('options-preview', { ...scene, activeTool: tool }, { x: 40, y: 40 });
   const source = selected ?? initial;
   let label: number | null = null;
   const capped = (value: number, cap: number): number => {

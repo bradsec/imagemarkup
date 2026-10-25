@@ -7,7 +7,7 @@ test('entering crop clears the selection and marquee overlay', async ({ page }) 
   await dragImage(page, [40, 40], [90, 90]);
   // Capture the reference in crop mode for comparison with the crop result.
   await page.locator('.toolrail [data-tool="crop"]').click();
-  const canvas = page.locator('.stage-host > canvas:not(.tool-preview)');
+  const canvas = page.locator('.stage-host > canvas');
   const cleanPixels = await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
   await page.locator('.toolrail [data-tool="select"]').click();
   await dragImage(page, [20, 20], [110, 110]);
@@ -132,6 +132,7 @@ test('clips intersecting layers and removes layers outside an applied crop', asy
   await loadImage(page);
   await page.locator('.toolrail [data-tool="rect"]').click();
   await drag(page, [-145, -95], [-95, -45]);
+  await page.locator('.toolrail [data-tool="rect"]').click();
   await drag(page, [-25, -25], [65, 65]);
   await page.locator('.toolrail [data-tool="crop"]').click();
   await drag(page, [-80, -60], [80, 60]);

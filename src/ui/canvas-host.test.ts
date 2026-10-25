@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { constrainDrawPoint, constrainRotation, drawBounds, isTypingTarget, makeToolAnnotation, pinchViewport, wheelZoom } from './canvas-interaction';
-import { createScene, type Scene } from '../core/types';
+import { createScene } from '../core/types';
 import { imageToScreen, screenToImage } from '../core/geometry';
 
 describe('isTypingTarget', () => {
@@ -15,28 +15,15 @@ describe('isTypingTarget', () => {
 });
 
 describe('makeToolAnnotation', () => {
-  it('uses the next counter value and current shape settings for placement and preview', () => {
+  it('uses the next counter value and current shape settings for placement', () => {
     const scene = createScene();
     scene.activeTool = 'counter';
     scene.counterNext = 7;
     scene.counterFormat = 'roman';
     scene.counterSize = 24;
     const placed = makeToolAnnotation('placed', scene, { x: 50, y: 40 });
-    const ghost = makeToolAnnotation('ghost', scene, { x: 50, y: 40 }, true);
     const expected = { type: 'counter', position: { x: 50, y: 40 }, n: 7, format: 'roman', radius: 24 };
     expect(placed).toMatchObject(expected);
-    expect(ghost).toMatchObject(expected);
-  });
-
-  it('keeps a redaction preview inside the image', () => {
-    const scene = createScene();
-    scene.activeTool = 'redaction';
-    scene.image = { width: 200, height: 100 } as Scene['image'];
-    scene.redactionMode = 'blur';
-    scene.redactionStrength = 20;
-    expect(makeToolAnnotation('ghost', scene, { x: 195, y: 95 }, true)).toMatchObject({
-      type: 'redaction', mode: 'blur', strength: 20, rect: { x: 100, y: 0, w: 100, h: 100 },
-    });
   });
 
   it('defaults new solid redactions to black', () => {

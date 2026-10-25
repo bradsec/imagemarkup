@@ -287,9 +287,6 @@
 .load-error p { margin: 0; color: #ffa49c; font-weight: 600; }
 .load-error button { min-height: 32px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
 .stage-host canvas { position: absolute; inset: 0; display: block; }
-.stage-host canvas.tool-preview { z-index: 1; pointer-events: none; opacity: 1; transition: opacity .2s ease-out; }
-.stage-host canvas.tool-preview[data-preview-tool="highlighter"] { mix-blend-mode: multiply; }
-.stage-host canvas.tool-preview[data-visible="false"] { opacity: 0; }
 .stage-host[data-active-tool="select"] canvas { cursor: default; }
 .stage-host[data-active-tool="pan"] canvas { cursor: grab; }
 .stage-host[data-active-tool="pan"]:active canvas { cursor: grabbing; }

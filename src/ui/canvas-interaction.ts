@@ -59,7 +59,7 @@ export function isTypingTarget(tagName: string, inputType: string, contentEditab
     || (tagName === 'INPUT' && !['button', 'checkbox', 'color', 'file', 'radio', 'range', 'reset', 'submit'].includes(inputType));
 }
 
-export function makeToolAnnotation(id: string, scene: Scene, point: Point, preview = false): Annotation {
+export function makeToolAnnotation(id: string, scene: Scene, point: Point): Annotation {
   let object = createAnnotation(id, scene.activeTool as Annotation['type'], point, scene.toolStyle);
   if (object.type === 'counter') object = {
     ...object, n: scene.counterNext, radius: scene.counterSize, shape: scene.counterShape,
@@ -71,12 +71,8 @@ export function makeToolAnnotation(id: string, scene: Scene, point: Point, previ
   };
   if (object.type === 'symbol') object = { ...object, name: scene.symbolName, points: scene.symbolPoints, innerRatio: scene.symbolInnerRatio, sides: scene.symbolSides };
   if (object.type === 'arrow') object = { ...object, startHead: scene.arrowStartHead, endHead: scene.arrowEndHead };
-  if (object.type === 'text') object = { ...object, text: preview ? 'Text' : '', fontFamily: scene.fontFamily, fontSize: scene.fontSize, letterSpacing: scene.letterSpacing, lineHeight: scene.lineHeight, fontWeight: scene.fontWeight, fontStyle: scene.fontStyle, underline: scene.textUnderline, align: scene.textAlign };
-  if (object.type === 'redaction') {
-    const size = scene.image ? Math.min(120, scene.image.width, scene.image.height) : 120;
-    object = { ...object, mode: scene.redactionMode, strength: scene.redactionStrength,
-      style: scene.redactionMode === 'solid' ? { ...object.style, fill: object.style.fill ?? '#000000' } : object.style,
-      rect: preview && scene.image ? { x: Math.max(0, Math.min(scene.image.width - size, point.x - size / 2)), y: Math.max(0, Math.min(scene.image.height - size, point.y - size / 2)), w: size, h: size } : object.rect };
-  }
+  if (object.type === 'text') object = { ...object, text: '', fontFamily: scene.fontFamily, fontSize: scene.fontSize, letterSpacing: scene.letterSpacing, lineHeight: scene.lineHeight, fontWeight: scene.fontWeight, fontStyle: scene.fontStyle, underline: scene.textUnderline, align: scene.textAlign };
+  if (object.type === 'redaction') object = { ...object, mode: scene.redactionMode, strength: scene.redactionStrength,
+    style: scene.redactionMode === 'solid' ? { ...object.style, fill: object.style.fill ?? '#000000' } : object.style };
   return object;
 }

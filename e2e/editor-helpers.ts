@@ -86,7 +86,7 @@ export async function loadImage(page: Page): Promise<void> {
 }
 
 export async function canvasCenter(page: Page): Promise<{ x: number; y: number }> {
-  const box = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
+  const box = await page.locator('.stage-host > canvas').boundingBox();
   if (!box) throw new Error('Canvas is not visible');
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
@@ -101,7 +101,7 @@ export async function drag(page: Page, from: [number, number], to: [number, numb
 
 export async function imagePoint(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
   const scene = await saveScene(page);
-  const box = await page.locator('.stage-host > canvas:not(.tool-preview)').boundingBox();
+  const box = await page.locator('.stage-host > canvas').boundingBox();
   if (!box) throw new Error('Canvas is not visible');
   return { x: box.x + scene.viewport.tx + x * scene.viewport.scale, y: box.y + scene.viewport.ty + y * scene.viewport.scale };
 }
@@ -125,7 +125,7 @@ export async function saveScene(page: Page): Promise<any> {
 }
 
 export async function canvasColorPixelCount(page: Page, color: [number, number, number]): Promise<number> {
-  return page.locator('.stage-host > canvas:not(.tool-preview)').evaluate((element, expected) => {
+  return page.locator('.stage-host > canvas').evaluate((element, expected) => {
     const canvas = element as HTMLCanvasElement;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas context unavailable');
@@ -136,17 +136,4 @@ export async function canvasColorPixelCount(page: Page, color: [number, number, 
     }
     return count;
   }, color);
-}
-
-export async function previewBounds(page: Page): Promise<{ x: number; y: number; w: number; h: number } | null> {
-  return page.locator('.tool-preview').evaluate((element) => {
-    const canvas = element as HTMLCanvasElement;
-    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
-    let left = canvas.width, top = canvas.height, right = -1, bottom = -1;
-    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
-      if (!pixels[(y * canvas.width + x) * 4 + 3]) continue;
-      left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
-    }
-    return right < 0 ? null : { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
-  });
 }

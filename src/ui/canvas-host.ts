@@ -9,7 +9,6 @@ import { translateAnnotation } from '../core/transform';
 import { clampCrop, cropFromDrag, moveCrop } from '../core/crop-geometry';
 
 import { createInlineTextEditor } from './text-editor';
-import { createToolPreview } from './tool-preview';
 import { createImageInput } from './image-input';
 import { HANDLE_CURSORS, constrainRotation, drawBounds, isTypingTarget, makeToolAnnotation, pinchViewport, rectsIntersect, wheelZoom } from './canvas-interaction';
 
@@ -37,17 +36,15 @@ export interface CanvasHost {
   cancelGesture(): void;
 }
 
+// Shapes hand off to Move with the new item selected, so a stray drag adjusts it instead of drawing another.
+// Pen, highlighter and counter stay active and leave nothing selected because they are placed in quick runs.
+const MOVE_AFTER_DRAW = new Set<Annotation['type']>(['rect', 'ellipse', 'line', 'arrow', 'redaction', 'symbol']);
+
 export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): CanvasHost {
   const canvas = document.createElement('canvas');
   host.insertBefore(canvas, host.firstChild);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
-  const preview = document.createElement('canvas');
-  preview.className = 'tool-preview';
-  preview.setAttribute('aria-hidden', 'true');
-  preview.dataset.visible = 'false';
-  canvas.after(preview);
-  const toolPreview = createToolPreview(preview);
 
   const emptyState = host.querySelector<HTMLElement>('.empty-state');
 
@@ -151,11 +148,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     canvas.height = next.height;
     canvas.style.width = `${canvas.width}px`;
     canvas.style.height = `${canvas.height}px`;
-    preview.width = next.width;
-    preview.height = next.height;
-    preview.style.width = `${next.width}px`;
-    preview.style.height = `${next.height}px`;
-    requestPreview();
     const scene = store.get();
     if (previous && scene.image) {
       store.set({ viewport: panBy(scene.viewport, (next.width - previous.width) / 2, (next.height - previous.height) / 2) });
@@ -206,22 +198,14 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   const pointers = new Map<number, Point>();
   let spaceDown = false;
   let pointerOverStage = false;
-  let hoverPoint: Point | null = null;
-  let previewFrame = 0;
-
-  function requestPreview(): void {
-    if (!previewFrame) previewFrame = requestAnimationFrame(() => { previewFrame = 0; toolPreview.draw(store.get(), hoverPoint, Boolean(gesture) || spaceDown); });
-  }
-
 
   const resetSpace = () => {
     spaceDown = false;
     delete host.dataset.spacePan;
     if (gesture?.kind === 'pan') gesture = null;
-    requestPreview();
   };
   host.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') pointerOverStage = true; });
-  host.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') { pointerOverStage = false; hoverPoint = null; requestPreview(); } });
+  host.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') pointerOverStage = false; });
   host.addEventListener('pointerdown', (e) => {
     if (!spaceDown || e.pointerType === 'touch' || e.button !== 0 || !store.get().image) return;
     e.preventDefault();
@@ -231,7 +215,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     host.setPointerCapture(e.pointerId);
     gesture = { kind: 'pan', last: screen };
     host.dataset.spacePan = 'dragging';
-    requestPreview();
   }, true);
 
   function pointerPair(): [Point, Point] | null {
@@ -262,7 +245,8 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       object = resizeAnnotation(object, start, end);
     }
     history.record(scene);
-    store.set({ objects: [...scene.objects, object], counterNext: object.type === 'counter' ? scene.counterNext + 1 : scene.counterNext, selectedId: object.type === 'text' ? null : id, selectedIds: [] });
+    const moveAfter = MOVE_AFTER_DRAW.has(object.type);
+    store.set({ objects: [...scene.objects, object], counterNext: object.type === 'counter' ? scene.counterNext + 1 : scene.counterNext, selectedId: moveAfter ? id : null, selectedIds: [], ...(moveAfter ? { activeTool: 'select' as const } : {}) });
     if (object.type === 'text') editNewText(id);
     onStatus?.(object.type === 'text' ? 'Text editor opened' : `${object.type} placed`);
   }
@@ -301,10 +285,10 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
         }
       }
       history.record(current.before);
-      const selectAfterDraw = object && object.type !== 'pen' && object.type !== 'highlighter' && object.type !== 'text';
+      const moveAfter = Boolean(object && MOVE_AFTER_DRAW.has(object.type));
       // New text being typed stays selected so formatting controls apply to it, not only to the next text.
       const editingNewText = object?.type === 'text' && textEditor.editingId() === current.id;
-      store.set({ selectedId: selectAfterDraw || editingNewText ? current.id : null, selectedIds: [] });
+      store.set({ selectedId: moveAfter || editingNewText ? current.id : null, selectedIds: [], ...(moveAfter ? { activeTool: 'select' as const } : {}) });
       return;
     }
     if ((current.kind === 'move' || current.kind === 'resize' || current.kind === 'rotate') && current.changed) history.record(current.before);
@@ -337,8 +321,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       store.set({ selectedId: insideArtboard ? hitTest(scene.objects, image, tolerance)?.id ?? null : null, selectedIds: [] });
       return;
     }
-    hoverPoint = null;
-    requestPreview();
     e.preventDefault();
     const screen = anchorFromEvent(e);
     pointers.set(e.pointerId, screen);
@@ -448,12 +430,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     canvas.style.cursor = handle ? HANDLE_CURSORS[handle] : (insideArtboard && hitTest(scene.objects, image, tolerance) ? 'move' : '');
   }
   host.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'touch') {
-      const scene = store.get();
-      const point = screenToImage(anchorFromEvent(e), scene.viewport);
-      hoverPoint = scene.image && point.x >= 0 && point.y >= 0 && point.x <= scene.image.width && point.y <= scene.image.height ? point : null;
-      requestPreview();
-    }
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, anchorFromEvent(e));
     if (!gesture) {
       if (e.pointerType !== 'touch') updateHoverCursor(e);
@@ -546,7 +522,6 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     pointers.delete(e.pointerId);
     commitGesture();
     if (spaceDown) host.dataset.spacePan = 'held';
-    requestPreview();
   };
   const cancelGesture = (e: PointerEvent) => {
     if (e.target instanceof Element && e.target.closest('.text-editor')) return;
@@ -581,7 +556,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     }
     if (e.code === 'Space' && !typing && (spaceDown || pointerOverStage || document.activeElement === host || document.activeElement === document.body)) {
       e.preventDefault();
-      if (!e.repeat) { spaceDown = true; host.dataset.spacePan = 'held'; requestPreview(); }
+      if (!e.repeat) { spaceDown = true; host.dataset.spacePan = 'held'; }
       return;
     }
     if (editingTarget) return;
@@ -661,7 +636,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
   });
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe(host);
-  store.subscribe(() => { draw(); requestPreview(); });
+  store.subscribe(draw);
   resize();
 
   return {
