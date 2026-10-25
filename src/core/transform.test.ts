@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { cropAnnotations, scaleAnnotation, transformAnnotation, transformPoint, translateAnnotation } from './transform';
+import { annotationBounds } from './annotations';
 import type { Annotation } from './types';
 
 const rect: Annotation = { id: 'r', type: 'rect', rect: { x: 10, y: 20, w: 30, h: 40 }, style: { color: '#f00', width: 2, opacity: 1 } };
 
 describe('frame transforms', () => {
+  it('keeps the text center aligned through frame transforms', () => {
+    const text: Annotation = { id: 't', type: 'text', position: { x: 10, y: 30 }, text: 'Hello', fontFamily: 'sans-serif', fontSize: 20, fontWeight: 'normal', align: 'left', style: { color: '#f00', width: 2, opacity: 1 } };
+    const bounds = annotationBounds(text);
+    const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
+    for (const transform of ['rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical'] as const) {
+      const next = annotationBounds(transformAnnotation(text, transform, 100, 80));
+      const expected = transformPoint(center, transform, 100, 80);
+      expect(next.x + next.w / 2).toBeCloseTo(expected.x);
+      expect(next.y + next.h / 2).toBeCloseTo(expected.y);
+    }
+  });
+
   it('rotates points and annotation rectangles', () => {
     expect(transformPoint({ x: 10, y: 20 }, 'rotate-right', 100, 80)).toEqual({ x: 60, y: 10 });
     expect(transformAnnotation(rect, 'rotate-right', 100, 80)).toMatchObject({ rect: { x: 20, y: 10, w: 40, h: 30 } });

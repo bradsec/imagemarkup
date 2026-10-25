@@ -1,4 +1,4 @@
-import { annotationVisualBounds, rectFromPoints } from './annotations';
+import { annotationBounds, annotationVisualBounds, rectFromPoints } from './annotations';
 import type { Point, Rect } from './geometry';
 import { isPathAnnotation, type Annotation } from './types';
 
@@ -28,11 +28,19 @@ export function transformAnnotation(object: Annotation, transform: FrameTransfor
       : { ...base, rotation: -(object.rotation ?? 0), flipY: !object.flipY };
   }
   if (object.type === 'text') {
+    const oldBounds = annotationBounds(object);
+    const center = transformPoint({ x: oldBounds.x + oldBounds.w / 2, y: oldBounds.y + oldBounds.h / 2 }, transform, width, height);
     const base = { ...object, position: transformPoint(object.position, transform, width, height) };
-    if (transform === 'rotate-left' || transform === 'rotate-right') return { ...base, rotation: (object.rotation ?? 0) + (transform === 'rotate-right' ? Math.PI / 2 : -Math.PI / 2) };
-    return transform === 'flip-horizontal'
-      ? { ...base, rotation: -(object.rotation ?? 0), flipX: !object.flipX }
-      : { ...base, rotation: -(object.rotation ?? 0), flipY: !object.flipY };
+    const next = transform === 'rotate-left' || transform === 'rotate-right'
+      ? { ...base, rotation: (object.rotation ?? 0) + (transform === 'rotate-right' ? Math.PI / 2 : -Math.PI / 2) }
+      : transform === 'flip-horizontal'
+        ? { ...base, rotation: -(object.rotation ?? 0), flipX: !object.flipX }
+        : { ...base, rotation: -(object.rotation ?? 0), flipY: !object.flipY };
+    const nextBounds = annotationBounds(next);
+    return { ...next, position: {
+      x: next.position.x + center.x - nextBounds.x - nextBounds.w / 2,
+      y: next.position.y + center.y - nextBounds.y - nextBounds.h / 2,
+    } };
   }
   const rotation = transform.startsWith('flip-') && object.rotation ? { rotation: -object.rotation } : {};
   if ('rect' in object) return { ...object, ...rotation, rect: transformRect(object.rect, transform, width, height) };
