@@ -301,10 +301,10 @@ test.describe('mobile layout', () => {
     await expect(editor).toBeVisible();
     await page.getByRole('button', { name: 'Bold' }).click();
     await expect(editor).toBeVisible();
-    // A canvas tap commits the edit; with Text still active it opens a new, empty editor.
+    // Placing text returned the editor to Move, so a canvas tap commits the edit without opening another.
+    await expect(page.locator('.toolrail [data-tool="select"]')).toHaveAttribute('aria-pressed', 'true');
     await page.mouse.click(stage.x + 20, stage.y + stage.height - 30);
-    await expect(editor).toHaveValue('');
-    await page.keyboard.press('Escape');
+    await expect(editor).toHaveCount(0);
     expect((await saveScene(page)).objects).toEqual([expect.objectContaining({ type: 'text', text: 'Palette text', fontWeight: 'bold' })]);
   });
 

@@ -164,6 +164,14 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     draw();
   }
 
+  // Placing text hands off to the inline editor and returns to Move, so the next click does not start another text box.
+  function editNewText(id: string): void {
+    queueMicrotask(() => {
+      store.set({ activeTool: 'select' });
+      textEditor.edit(id, false);
+    });
+  }
+
   function anchorFromEvent(e: Pick<PointerEvent | WheelEvent, 'clientX' | 'clientY'>): Point {
     const rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -255,7 +263,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
     }
     history.record(scene);
     store.set({ objects: [...scene.objects, object], counterNext: object.type === 'counter' ? scene.counterNext + 1 : scene.counterNext, selectedId: object.type === 'text' ? null : id, selectedIds: [] });
-    if (object.type === 'text') queueMicrotask(() => textEditor.edit(id, false));
+    if (object.type === 'text') editNewText(id);
     onStatus?.(object.type === 'text' ? 'Text editor opened' : `${object.type} placed`);
   }
 
@@ -418,7 +426,7 @@ export function mountCanvasHost({ host, store, onStatus }: CanvasHostOptions): C
       const nextOpacity = scene.activeTool === 'highlighter' ? .5 : 1;
       store.set({ objects: [...scene.objects, object], counterNext: object.type === 'counter' ? scene.counterNext + 1 : scene.counterNext, toolStyle: { ...scene.toolStyle, opacity: nextOpacity }, selectedId: null, selectedIds: [] });
       gesture = { kind: 'draw', id, start: image, before: scene };
-      if (object.type === 'text') queueMicrotask(() => textEditor.edit(id, false));
+      if (object.type === 'text') editNewText(id);
     }
   });
   function updateHoverCursor(e: PointerEvent): void {
