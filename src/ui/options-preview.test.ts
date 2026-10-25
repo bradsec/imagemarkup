@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createScene, type Tool } from '../core/types';
 import { annotationBounds } from '../core/annotations';
-import { buildPreviewScene } from './options-preview';
+import { buildPreviewScene, previewBackground } from './options-preview';
 
 describe('buildPreviewScene', () => {
   it('shows styled tools and hides tools without a useful sample', () => {
@@ -70,5 +70,16 @@ describe('buildPreviewScene', () => {
       expect(bounds.x + bounds.w / 2).toBeCloseTo(40);
       expect(bounds.y + bounds.h / 2).toBeCloseTo(40);
     }
+  });
+  it('uses a dark tile background for light samples so white marks stay visible', () => {
+    const scene = createScene();
+    scene.activeTool = 'text';
+    scene.toolStyle.color = '#ffffff';
+    expect(previewBackground(buildPreviewScene(scene, undefined)!.object)).toBe('#2b3036');
+    scene.toolStyle.color = '#ff3b30';
+    expect(previewBackground(buildPreviewScene(scene, undefined)!.object)).toBe('#ffffff');
+    scene.activeTool = 'counter';
+    scene.toolStyle = { ...scene.toolStyle, fill: '#fafafa', stroke: false };
+    expect(previewBackground(buildPreviewScene(scene, undefined)!.object)).toBe('#2b3036');
   });
 });

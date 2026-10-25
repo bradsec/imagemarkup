@@ -59,6 +59,19 @@ export function buildPreviewScene(scene: Scene, selected: Annotation | undefined
   return { object, sizeLabel: label === null ? null : `${Math.round(label)} px` };
 }
 
+const LIGHT_TILE = '#ffffff';
+const DARK_TILE = '#2b3036';
+
+/** Tile background with enough contrast for the sample's main color; light marks get a dark tile. */
+export function previewBackground(object: Annotation): string {
+  const color = object.type === 'counter' && object.paint === 'separate' && object.style.fill ? object.style.fill : object.style.color;
+  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+  if (!match) return LIGHT_TILE;
+  const [r, g, b] = match.slice(1).map((hex) => parseInt(hex, 16) / 255);
+  // Rec. 709 luma is enough to tell near-white marks from the rest.
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.8 ? DARK_TILE : LIGHT_TILE;
+}
+
 export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement, getScene: () => Scene, getSelected: () => Annotation | undefined): () => void {
   const ctx = canvas.getContext('2d')!;
   let frame = 0;
@@ -75,7 +88,8 @@ export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement
     if (canvas.width !== pixels || canvas.height !== pixels) { canvas.width = pixels; canvas.height = pixels; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, SIZE, SIZE);
-    ctx.fillStyle = '#ffffff';
+    // Redaction and highlighter samples are drawn over dark sample text, so they keep the light tile.
+    ctx.fillStyle = preview.object.type === 'redaction' || preview.object.type === 'highlighter' ? LIGHT_TILE : previewBackground(preview.object);
     ctx.fillRect(0, 0, SIZE, SIZE);
     const { object } = preview;
     if (object.type === 'redaction') {
