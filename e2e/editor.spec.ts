@@ -1613,7 +1613,7 @@ test('opens About from Help and links to the creator and repository', async ({ p
   await expect(page.locator('#about-dialog a', { hasText: 'BRADSEC' })).toHaveAttribute('href', 'https://github.com/bradsec');
   await expect(page.locator('#about-dialog a', { hasText: 'View imagemarkup on GitHub' })).toHaveAttribute('href', 'https://github.com/bradsec/imagemarkup');
   await expect(page.locator('#about-dialog')).toContainText('If you find this useful, please consider starring the repository. It helps others discover the project.');
-  await expect(page.locator('#about-dialog a', { hasText: 'buy me a coffee' })).toHaveAttribute('href', 'https://buymeacoffee.com/markbradley');
+  await expect(page.locator('#about-dialog a', { hasText: 'Ko-fi' })).toHaveAttribute('href', 'https://ko-fi.com/bradsec');
   await expect(page.locator('#about-dialog a', { hasText: 'View third-party licenses' })).toHaveAttribute('href', './THIRD-PARTY-LICENSES.txt');
   await expect(page.locator('#about-dialog a')).toHaveCount(4);
 });

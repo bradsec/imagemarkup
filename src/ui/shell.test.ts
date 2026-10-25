@@ -33,8 +33,8 @@ describe('renderShell', () => {
     expect(root.querySelector('[data-action="reset-settings"]')).toBeTruthy();
     expect([...root.querySelectorAll('.app-menu')].find((menu) => menu.querySelector('summary')?.textContent === 'Help')?.textContent).not.toContain('GitHub repository');
     expect(root.querySelector('#about-dialog a[href="https://github.com/bradsec/imagemarkup"]')).toBeTruthy();
-    expect(root.querySelector('.about-support-copy')?.textContent).toBe('If you find this useful, please consider starring the repository. It helps others discover the project. You can also buy me a coffee.');
-    expect(root.querySelector('#about-dialog a[href="https://buymeacoffee.com/markbradley"]')?.textContent).toBe('buy me a coffee');
+    expect(root.querySelector('.about-support-copy')?.textContent).toBe('If you find this useful, please consider starring the repository. It helps others discover the project. You can also support me on Ko-fi.');
+    expect(root.querySelector('#about-dialog a[href="https://ko-fi.com/bradsec"]')?.textContent).toBe('Ko-fi');
     expect(root.querySelector('#about-dialog a[href="./THIRD-PARTY-LICENSES.txt"]')?.textContent).toBe('View third-party licenses');
     expect(root.querySelector('.about-repo-link svg')).toBeNull();
   });

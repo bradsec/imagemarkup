@@ -284,7 +284,7 @@ export function renderShell(root: HTMLElement): Shell {
           <p>Created by Mark Bradley (<a href="https://github.com/bradsec" target="_blank" rel="noopener noreferrer">BRADSEC</a>).</p>
           <p>Bundled assets include Google Material Symbols, fonts under the SIL Open Font License, the Primer Octicons GitHub mark, and legacy Font Awesome hand gestures. <a href="./THIRD-PARTY-LICENSES.txt" target="_blank" rel="noopener noreferrer">View third-party licenses</a>.</p>
           <a class="about-repo-link" href="https://github.com/bradsec/imagemarkup" target="_blank" rel="noopener noreferrer">View imagemarkup on GitHub</a>
-          <p class="about-support-copy">If you find this useful, please consider starring the repository. It helps others discover the project. You can also <a href="https://buymeacoffee.com/markbradley" target="_blank" rel="noopener noreferrer">buy me a coffee</a>.</p>
+          <p class="about-support-copy">If you find this useful, please consider starring the repository. It helps others discover the project. You can also support me on <a href="https://ko-fi.com/bradsec" target="_blank" rel="noopener noreferrer">Ko-fi</a>.</p>
           <div class="dialog-actions"><button value="close">Close</button></div>
         </form>
       </dialog>
