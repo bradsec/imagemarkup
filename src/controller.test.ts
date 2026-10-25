@@ -309,4 +309,45 @@ describe('controller regressions', () => {
     expect(mocks.store!.get().watermark).toBeNull();
     expect(mocks.host.checkpointScene).toHaveBeenCalledTimes(1);
   });
+
+  it('crops the image and clips the selected layer in one undo step', () => {
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+    const dataUrl = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AA==');
+    try {
+      const root = app();
+      const scene = createScene();
+      mocks.store!.set({
+        image: { source: document.createElement('canvas'), width: 100, height: 100, dataUrl: 'data:image/png;base64,AA==' },
+        objects: [{ id: 'rect-1', type: 'rect', rect: { x: 15, y: 25, w: 10, h: 10 }, style: scene.toolStyle }],
+        crop: { x: 10, y: 20, w: 40, h: 30 },
+        activeTool: 'crop',
+      });
+      mocks.host.checkpointScene.mockClear();
+      root.querySelector<HTMLButtonElement>('[data-action="apply-crop"]')!.click();
+      expect(mocks.host.checkpointScene).toHaveBeenCalledTimes(1);
+      expect(mocks.store!.get().image).toMatchObject({ width: 40, height: 30 });
+      expect(mocks.store!.get().objects[0]).toMatchObject({ rect: { x: 5, y: 5, w: 10, h: 10 } });
+      expect(mocks.store!.get().crop).toBeNull();
+    } finally {
+      context.mockRestore();
+      dataUrl.mockRestore();
+    }
+  });
+
+  it('rotates image dimensions and its layers together', () => {
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ translate: vi.fn(), rotate: vi.fn(), scale: vi.fn(), drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+    const dataUrl = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AA==');
+    try {
+      const root = app();
+      mocks.store!.set({ image: { source: document.createElement('canvas'), width: 100, height: 80, dataUrl: 'data:image/png;base64,AA==' } });
+      root.querySelector<HTMLButtonElement>('[data-action="transform"]')!.click();
+      mocks.host.checkpointScene.mockClear();
+      root.querySelector<HTMLDialogElement>('#transform-dialog')!.close('rotate-right');
+      expect(mocks.host.checkpointScene).toHaveBeenCalledTimes(1);
+      expect(mocks.store!.get().image).toMatchObject({ width: 80, height: 100 });
+    } finally {
+      context.mockRestore();
+      dataUrl.mockRestore();
+    }
+  });
 });
