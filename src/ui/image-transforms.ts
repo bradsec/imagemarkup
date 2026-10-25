@@ -91,8 +91,15 @@ export function mountImageTransforms(root: HTMLElement, store: Store<Scene>, can
       if (Number.isFinite(height) && height > 0) resizeWidthInput.value = String(resizeDimension(height * transformAspectRatio));
     }
   };
-  resizeWidthInput.addEventListener('change', () => syncResizeDimension('width'));
-  resizeHeightInput.addEventListener('change', () => syncResizeDimension('height'));
+  resizeWidthInput.addEventListener('input', () => syncResizeDimension('width'));
+  resizeHeightInput.addEventListener('input', () => syncResizeDimension('height'));
+  // Enter would otherwise submit the first button in the form (Rotate left) and rotate the image.
+  const resizeButton = transformDialog.querySelector<HTMLButtonElement>('button[value="resize"]')!;
+  for (const input of [resizeWidthInput, resizeHeightInput]) input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    transformDialog.querySelector('form')!.requestSubmit(resizeButton);
+  });
   lockAspectInput.addEventListener('change', () => syncResizeDimension('width'));
   root.querySelector<HTMLButtonElement>('[data-action="transform"]')!.addEventListener('click', (event) => {
     const image = store.get().image;
@@ -118,7 +125,9 @@ export function mountImageTransforms(root: HTMLElement, store: Store<Scene>, can
       if (resizeWidth * height > 134_000_000) { statusEl.textContent = 'Resize dimensions are too large'; return; }
       const canvas = document.createElement('canvas');
       canvas.width = resizeWidth; canvas.height = height;
-      canvas.getContext('2d')!.drawImage(image.source, 0, 0, resizeWidth, height);
+      const resizeCtx = canvas.getContext('2d')!;
+      resizeCtx.imageSmoothingQuality = 'high';
+      resizeCtx.drawImage(image.source, 0, 0, resizeWidth, height);
       store.set({ image: imageFromCanvas(canvas), objects: scene.objects.map((object) => scaleAnnotation(object, resizeWidth / image.width, height / image.height)), crop: null, marquee: null, selectedId: null, selectedIds: [], viewport: fitViewport(resizeWidth, height, stageHost.clientWidth, stageHost.clientHeight) });
       return;
     }

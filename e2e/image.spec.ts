@@ -297,3 +297,15 @@ test('fits every tool option row inside the desktop options panel', async ({ pag
     expect(overflow, `${tool} options overflow`).toBeLessThanOrEqual(0);
   }
 });
+
+test('pressing Enter in a resize field resizes instead of rotating', async ({ page }) => {
+  await loadImage(page);
+  await page.getByText('Image', { exact: true }).click();
+  await page.locator('details[open]').getByRole('button', { name: 'Rotate, flip, resize' }).click();
+  const width = page.locator('#transform-dialog [name="resizeWidth"]');
+  await width.fill('160');
+  await expect(page.locator('#transform-dialog [name="resizeHeight"]')).toHaveValue('120');
+  await width.press('Enter');
+  await expect(page.locator('#transform-dialog')).not.toHaveAttribute('open', '');
+  expect((await saveScene(page)).image).toMatchObject({ width: 160, height: 120 });
+});
