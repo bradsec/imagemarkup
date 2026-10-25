@@ -144,3 +144,19 @@ test('clips intersecting layers and removes layers outside an applied crop', asy
   expect(scene.objects[0].rect.y).toBeGreaterThanOrEqual(0);
   expect(scene.selectedId).toBeNull();
 });
+
+test('applies a chosen ratio and orientation swap to the visible crop', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="crop"]').click();
+  await dragImage(page, [60, 40], [200, 160]);
+  const swap = page.getByRole('button', { name: 'Swap crop orientation' });
+  await expect(swap).toBeDisabled();
+  await page.locator('[data-style="crop-ratio"]').selectOption('16:9');
+  const wide = (await saveScene(page)).crop;
+  expect(wide.w / wide.h).toBeCloseTo(16 / 9, 3);
+  await swap.click();
+  await expect(swap).toHaveAttribute('aria-pressed', 'true');
+  const tall = (await saveScene(page)).crop;
+  expect(tall.w / tall.h).toBeCloseTo(9 / 16, 3);
+  expect(tall.w).toBeCloseTo(wide.h, 3);
+});

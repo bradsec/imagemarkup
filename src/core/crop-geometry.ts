@@ -25,3 +25,19 @@ export function clampCrop(crop: Rect, imageWidth: number, imageHeight: number): 
   const h = crop.h * scale;
   return { x: Math.max(0, Math.min(imageWidth - w, crop.x)), y: Math.max(0, Math.min(imageHeight - h, crop.y)), w, h };
 }
+
+/**
+ * Reshapes a crop to `ratio` (width / height) around its center, keeping its area so an
+ * inverted ratio exactly swaps width and height. Without a crop, returns a centered crop
+ * covering 80% of the image's limiting side. The result always fits inside the image.
+ */
+export function fitCropToRatio(crop: Rect | null, ratio: number, imageWidth: number, imageHeight: number): Rect {
+  let w = crop ? Math.sqrt(crop.w * crop.h * ratio) : Math.min(imageWidth, imageHeight * ratio) * 0.8;
+  let h = w / ratio;
+  const scale = Math.min(1, imageWidth / w, imageHeight / h);
+  w *= scale;
+  h *= scale;
+  const cx = crop ? crop.x + crop.w / 2 : imageWidth / 2;
+  const cy = crop ? crop.y + crop.h / 2 : imageHeight / 2;
+  return { x: Math.max(0, Math.min(imageWidth - w, cx - w / 2)), y: Math.max(0, Math.min(imageHeight - h, cy - h / 2)), w, h };
+}

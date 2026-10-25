@@ -1,4 +1,5 @@
 import { cropAnnotations, scaleAnnotation, transformAnnotation, type FrameTransform } from '../core/transform';
+import { fitCropToRatio } from '../core/crop-geometry';
 import { fitViewport } from '../core/viewport';
 import type { LoadedImage, Scene } from '../core/types';
 import type { Store } from '../state/store';
@@ -38,14 +39,22 @@ export function mountImageTransforms(root: HTMLElement, store: Store<Scene>, can
   root.querySelector<HTMLButtonElement>('[data-action="cancel-crop"]')!.addEventListener('click', () => { canvasHost.cancelGesture(); store.set({ crop: null, marquee: null, selectedId: null, selectedIds: [], activeTool: 'select' }); });
   const cropRatioInput = root.querySelector<HTMLSelectElement>('[data-style="crop-ratio"]')!;
   let cropOrientationSwapped = false;
+  const swapCropButton = root.querySelector<HTMLButtonElement>('[data-action="swap-crop-ratio"]')!;
   const updateCropRatio = () => {
-    const image = store.get().image;
+    const scene = store.get();
+    const image = scene.image;
     const values: Record<string, number> = { '1:1': 1, '4:3': 4 / 3, '3:2': 3 / 2, '16:9': 16 / 9 };
-    const ratio = cropRatioInput.value === 'original' ? image && image.width / image.height : values[cropRatioInput.value];
-    canvasHost.setCropRatio(ratio ? cropOrientationSwapped ? 1 / ratio : ratio : undefined);
+    const base = cropRatioInput.value === 'original' ? image && image.width / image.height : values[cropRatioInput.value];
+    const ratio = base ? cropOrientationSwapped ? 1 / base : base : undefined;
+    canvasHost.setCropRatio(ratio);
+    swapCropButton.disabled = !base || base === 1;
+    swapCropButton.setAttribute('aria-pressed', String(cropOrientationSwapped));
+    // Apply the ratio to the visible crop now, not only to the next drag.
+    if (ratio && image && scene.activeTool === 'crop') store.set({ crop: fitCropToRatio(scene.crop, ratio, image.width, image.height) });
   };
   cropRatioInput.addEventListener('change', () => { cropOrientationSwapped = false; updateCropRatio(); });
-  root.querySelector<HTMLButtonElement>('[data-action="swap-crop-ratio"]')!.addEventListener('click', () => { cropOrientationSwapped = !cropOrientationSwapped; updateCropRatio(); });
+  swapCropButton.addEventListener('click', () => { cropOrientationSwapped = !cropOrientationSwapped; updateCropRatio(); });
+  updateCropRatio();
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && document.activeElement === stageHost && store.get().activeTool === 'crop') { event.preventDefault(); applyCrop(); }
   });
