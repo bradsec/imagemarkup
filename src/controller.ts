@@ -657,7 +657,7 @@ export function startApp(root: HTMLElement): void {
     const hasDeletableSelection = layerSelection.some((id) => !scene.objects.find((object) => object.id === id)?.locked);
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="delete"], [data-action="delete-selected-layers"]')) button.disabled = !hasDeletableSelection;
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="duplicate"]')) button.disabled = layerSelection.length === 0;
-    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="send-back"], [data-action="bring-front"], [data-action="send-backward"], [data-action="bring-forward"]')) button.disabled = !selected;
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="send-back"], [data-action="bring-front"], [data-action="send-backward"], [data-action="bring-forward"]')) button.disabled = !selected || Boolean(selected.locked);
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="undo"]')) button.disabled = !canvasHost.canUndo();
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="redo"]')) button.disabled = !canvasHost.canRedo();
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-action="copy"], [data-action="export"], [data-action="frame"], [data-action="transform"], [data-action="save-project"]')) button.disabled = !scene.image;
@@ -1155,7 +1155,7 @@ export function startApp(root: HTMLElement): void {
   function reorder(front: boolean): void {
     const scene = store.get();
     const index = scene.objects.findIndex((object) => object.id === scene.selectedId);
-    if (index < 0) return;
+    if (index < 0 || scene.objects[index].locked) return;
     canvasHost.checkpointScene();
     const objects = [...scene.objects];
     const [object] = objects.splice(index, 1);

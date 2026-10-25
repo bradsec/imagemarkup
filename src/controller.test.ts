@@ -156,6 +156,15 @@ describe('controller regressions', () => {
     root.querySelector<HTMLButtonElement>('[data-layer-context-action="send-backward"]')!.click();
     expect(mocks.store!.get().objects.map((object) => object.id)).toEqual(['b', 'a', 'c']);
   });
+  it('keeps a locked selected layer in place when arranging', () => {
+    const root = app();
+    const scene = createScene();
+    const objects = ['a', 'b'].map((id) => ({ id, type: 'rect' as const, rect: { x: 1, y: 1, w: 20, h: 20 }, style: scene.toolStyle, locked: id === 'a' }));
+    mocks.store!.set({ image: { source: document.createElement('canvas'), width: 100, height: 100, dataUrl: 'data:image/png;base64,AA==' }, objects, selectedId: 'a' });
+    root.querySelector<HTMLButtonElement>('[data-action="bring-front"]')!.click();
+    expect(mocks.store!.get().objects.map((object) => object.id)).toEqual(['a', 'b']);
+    expect(mocks.host.checkpointScene).not.toHaveBeenCalled();
+  });
   it('CODE-03 retains a failed autosave record and reports the restore error', async () => {
     mocks.storage.getItem.mockResolvedValue('{bad json');
     const root = app();
