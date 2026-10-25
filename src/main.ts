@@ -1,4 +1,7 @@
-import './style.css';
+import './styles/base.css';
+import './styles/workspace.css';
+import './styles/dialogs.css';
+import './styles/responsive.css';
 import { startApp } from './controller';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;

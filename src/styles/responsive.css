@@ -1,0 +1,126 @@
+@media (pointer: coarse) {
+  .optionsbar input[type="range"], .dialog-form input[type="range"] { height: 40px; border: 0; background: transparent; appearance: none; }
+  .optionsbar input[type="range"]::-webkit-slider-runnable-track, .dialog-form input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--border-strong); }
+  .optionsbar input[type="range"]::-webkit-slider-thumb, .dialog-form input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -9px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); appearance: none; }
+  .optionsbar input[type="range"]::-moz-range-track, .dialog-form input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--border-strong); }
+  .optionsbar input[type="range"]::-moz-range-thumb, .dialog-form input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); }
+  .load-error button { min-height: 44px; min-width: 44px; }
+  .app-menu summary, .toolrail button, .icon-button, .primary-action { min-height: 44px; }
+  .toolrail .tool-colors button { min-height: 24px; }
+  .icon-button { min-width: 44px; }
+  .selection-dimensions input { min-height: 44px; }
+  .optionsbar button, .optionsbar select, .optionsbar input:not([type="range"]) { min-height: 40px; }
+  /* Six compact columns keep each palette to two rows in the 236px panel; 30px stays above the 24px target minimum. */
+  .optionsbar .color-presets { grid-template-columns: repeat(6, 30px); }
+  .optionsbar .color-presets button { width: 30px; min-width: 30px; height: 30px; min-height: 30px; }
+  .optionsbar .stroke-presets button { padding-inline: 3px; }
+  .dialog-actions button, .transform-grid button { min-height: 44px; }
+}
+
+@media (any-pointer: coarse) {
+  input, select, textarea { font-size: 16px; }
+  /* At 16px a value and its presets no longer fit beside the label in the 236px panel, so they take their own row. */
+  .optionsbar label:has(.numeric-pair) { flex-wrap: wrap; }
+  .optionsbar label:has(.numeric-pair) > .numeric-pair { flex: 1 1 100%; }
+}
+
+@media (max-width: 760px) {
+  :root { --header-height: calc(52px + env(safe-area-inset-top)); }
+  .app-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: calc(4px + env(safe-area-inset-top)) max(7px, env(safe-area-inset-right)) 3px max(7px, env(safe-area-inset-left));
+  }
+  .menubar { width: 100%; height: 44px; overflow: visible; }
+  .brand { flex: 0 0 auto; }
+  .app-menu { flex: 0 0 auto; }
+  .app-menu summary { padding-inline: 7px; }
+  .menu-popover {
+    position: fixed;
+    top: var(--header-height);
+    left: max(8px, env(safe-area-inset-left));
+    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)));
+    max-height: calc(100dvh - var(--header-height) - env(safe-area-inset-bottom) - 8px);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .app-menu:nth-last-child(-n + 3) .menu-popover { right: max(8px, env(safe-area-inset-right)); left: auto; }
+  .menu-popover button, .menu-popover > a { min-width: 0; white-space: normal; }
+  .dialog-form label > input:not([type="checkbox"]):not([type="color"]), .dialog-form select { width: 100%; min-width: 0; }
+  .dialog-form > .size-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .topbar-actions { display: none; }
+  .workspace { flex-direction: row; padding-bottom: env(safe-area-inset-bottom); }
+  .toolrail {
+    order: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 calc(52px + env(safe-area-inset-left));
+    overflow: hidden;
+    padding: 8px 3px 6px max(3px, env(safe-area-inset-left));
+    border-top: 0;
+    border-right: 1px solid #101216;
+  }
+  .tool-list { display: grid; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y proximity; }
+  .toolrail button { flex: 0 0 44px; width: 44px; height: 44px; }
+  .tool-list > button { scroll-snap-align: start; }
+  .tool-colors { flex: 0 0 92px; width: 52px; height: 92px; margin: auto -3px 0; padding: 6px 0 0; border-top: 1px solid var(--border); border-left: 0; }
+  .selection-dimensions { position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto 44px; gap: 4px; transform: none; }
+  .selection-dimensions input { width: 100%; }
+  .editor { min-height: 0; }
+  .layers-panel { top: auto; right: 8px; bottom: 8px; width: min(260px, calc(100% - 16px)); height: min(52dvh, calc(100% - 96px)); min-height: 0; max-height: calc(100% - 96px); resize: none; }
+  .layers-panel[data-collapsed="true"] { width: 190px; }
+  .optionsbar {
+    top: 8px;
+    left: 8px;
+    width: 236px;
+    max-width: calc(100% - 16px);
+    max-height: min(52dvh, calc(100% - 72px));
+  }
+  .layers-panel[data-collapsed="true"] { padding-top: 0; padding-bottom: 0; }
+  .layers-panel[data-collapsed="true"] .layers-heading { min-height: 44px; }
+  .statusbar { flex-basis: 44px; min-height: 44px; gap: 10px; padding-bottom: env(safe-area-inset-bottom); }
+  .statusbar .status-tip { display: none; }
+  .statusbar .repo-link svg { display: none; }
+}
+
+@media (max-width: 520px) {
+  .brand { margin-right: 0; }
+  .statusbar .repo-link { display: none; }
+}
+
+@media (max-width: 760px) and (pointer: coarse) {
+  .load-error { top: 8px; right: 8px; bottom: auto; max-width: calc(100% - 16px); }
+}
+
+/* Phones in either orientation; keep in step with compactPanels in controller.ts. */
+@media (max-width: 760px), (pointer: coarse) and (max-height: 500px) {
+  /* Pin over the panel's 12px top padding so scrolled options never show above the heading. */
+  .options-heading { position: sticky; top: -12px; z-index: 1; min-height: 44px; background: var(--surface); }
+  .options-heading [data-action="toggle-options-panel"] { display: inline-flex; width: 44px; min-height: 44px; align-items: center; }
+  .optionsbar[data-collapsed="true"] { overflow: hidden; }
+  .optionsbar[data-collapsed="true"] > :not(.options-heading) { display: none !important; }
+}
+
+@media (forced-colors: active) {
+  .stage-host canvas.tool-preview { forced-color-adjust: none; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, .stage-host:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+  [aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; forced-color-adjust: auto; }
+  .color-presets button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: 2px; box-shadow: none; }
+  .text-editor:focus { outline-color: Highlight; box-shadow: none; }
+}
+
+@media (max-width: 440px) {
+  .empty-state::before { height: min(260px, calc(100% - 48px)); }
+}
+
+@media (max-width: 340px) {
+  .dialog-form { padding: 14px; }
+  .guide-dialog .dialog-actions { margin: 0 -14px -14px; padding: 10px 14px; }
+  .split-actions { grid-template-columns: 1fr 1fr; }
+  .split-actions > span { display: none; }
+  .split-actions > button:first-child { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}

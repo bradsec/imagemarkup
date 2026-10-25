@@ -51,7 +51,7 @@ src/render/        canvas rendering and export
 src/state/         editor state and autosave
 src/ui/            shell, controls and canvas host
 src/controller.ts  UI actions and editor coordination
-src/style.css      app styles and responsive layout
+src/styles/       ordered base, workspace, dialog and responsive styles
 public/            icons, bundled fonts, licenses and site metadata
 scripts/           icon generation
 e2e/               Playwright browser tests

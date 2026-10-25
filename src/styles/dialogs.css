@@ -1,0 +1,51 @@
+dialog {
+  width: min(400px, calc(100vw - max(14px, env(safe-area-inset-left), env(safe-area-inset-right)) - max(14px, env(safe-area-inset-left), env(safe-area-inset-right))));
+  max-width: 100%;
+  max-height: calc(100dvh - max(20px, env(safe-area-inset-top), env(safe-area-inset-bottom)) - max(20px, env(safe-area-inset-top), env(safe-area-inset-bottom)));
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #25292e;
+  color: var(--text);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 60%);
+}
+dialog::backdrop { background: rgb(7 9 12 / 72%); }
+.guide-dialog { width: min(760px, calc(100vw - max(14px, env(safe-area-inset-left), env(safe-area-inset-right)) - max(14px, env(safe-area-inset-left), env(safe-area-inset-right)))); }
+.guide-dialog .help-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 16px 24px; margin: 0; }
+.guide-dialog .help-settings dt { margin-bottom: 3px; font-weight: 650; }
+.guide-dialog .help-settings dd { margin: 0; color: var(--text-dim); line-height: 1.45; }
+.guide-dialog .dialog-actions { position: sticky; bottom: 0; margin: 0 -20px -20px; padding: 12px 20px; border-top: 1px solid var(--border); background: #25292e; }
+.dialog-form { display: grid; min-width: 0; gap: 16px; padding: 20px; }
+.dialog-form > *, .dialog-form label > * { min-width: 0; }
+.dialog-form > [hidden] { display: none !important; }
+.dialog-form p { margin: 0; color: var(--text-dim); }
+.dialog-heading { display: grid; gap: 4px; }
+.dialog-heading h2, .dialog-heading p { margin: 0; }
+.dialog-heading h2 { font-size: 18px; font-weight: 650; }
+.dialog-heading p { color: var(--text-dim); font-size: 12px; }
+.dialog-form label { display: grid; gap: 6px; color: var(--text-dim); }
+.dialog-form label small { max-width: 34rem; color: var(--text-faint); font-size: 11px; line-height: 1.4; }
+.dialog-form select, .dialog-form input {
+  min-height: 34px;
+  padding: 5px 7px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.dialog-form select, .dialog-form input:not([type="checkbox"]):not([type="color"]) { max-width: 100%; }
+.dialog-form .check-label { display: flex; align-items: center; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 3px; }
+.dialog-actions button, .transform-grid button { padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-raised); color: var(--text); }
+.dialog-actions button:last-child { border-color: #57add6; background: var(--accent-press); }
+.dialog-form a { color: var(--accent-hover); text-decoration: none; }
+.dialog-form a:hover { text-decoration: underline; }
+.export-overflow-note { margin: 0; color: var(--text-dim); font-size: 12px; }
+.range-with-value { display: flex; align-items: center; gap: 10px; }
+.range-with-value input { flex: 1 1 auto; min-width: 0; }
+.range-with-value output { min-width: 42px; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.split-actions { display: grid; grid-template-columns: auto 1fr auto auto; }
+.transform-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+

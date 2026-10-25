@@ -343,7 +343,7 @@ export function startApp(root: HTMLElement): void {
   const optionsbar = root.querySelector<HTMLElement>('.optionsbar')!;
   const dimensionsDesktopParent = selectionDimensions.parentElement!;
   const mobileOptions = window.matchMedia('(max-width: 760px)');
-  // Phones in either orientation; keep in step with the matching media query in style.css.
+  // Phones in either orientation; keep in step with the matching media query in styles/responsive.css.
   const compactPanels = window.matchMedia('(max-width: 760px), (pointer: coarse) and (max-height: 500px)');
   // Crossing the breakpoint hides the old container by CSS, which can blur the field before the
   // change listener runs; remember it so focus survives an orientation change.
