@@ -56,7 +56,7 @@ export function queryOptionControls(root: HTMLElement) {
 
 export function mountOptionsView(deps: {
   root: HTMLElement; store: Store<Scene>; canvasHost: ReturnType<typeof mountCanvasHost>; panels: ReturnType<typeof mountPanels>;
-  controls: ReturnType<typeof queryOptionControls>; stageHost: HTMLElement; statusEl: HTMLElement; toolButtons: HTMLButtonElement[];
+  controls: ReturnType<typeof queryOptionControls>; stageHost: HTMLElement; toolButtons: HTMLButtonElement[];
   toolList: HTMLElement; zoomValue: HTMLOutputElement; overflowButton: HTMLButtonElement; canvasInstructions: HTMLElement;
   selectionDimensions: HTMLElement; selectionWidth: HTMLInputElement; selectionHeight: HTMLInputElement; selectionAspectButton: HTMLButtonElement;
   getPreferences: () => EditorPreferences; dimensionValue: (pixels: number) => string; formatMeasurement: (pixels: number) => string;

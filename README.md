@@ -46,11 +46,11 @@ Numeric tool settings pair exact values with common-value pickers or sliders. Fr
 index.html          page metadata and app mount
 src/core/          annotation models, geometry, history and serialization
 src/fonts/         uploaded font storage
-src/io/            image loading
+src/io/            image loading and project I/O
 src/render/        canvas rendering and export
 src/state/         editor state and autosave
-src/ui/            shell, controls and canvas host
-src/controller.ts  UI actions and editor coordination
+src/ui/            shell, canvas host, panels and editor controls
+src/controller.ts  editor setup and coordination
 src/styles/       ordered base, workspace, dialog and responsive styles
 public/            icons, bundled fonts, licenses and site metadata
 scripts/           icon generation

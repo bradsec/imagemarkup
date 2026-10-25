@@ -310,7 +310,7 @@ describe('controller regressions', () => {
     expect(mocks.host.checkpointScene).toHaveBeenCalledTimes(1);
   });
 
-  it('crops the image and clips the selected layer in one undo step', () => {
+  it('crops the image and clips a layer in one undo step', () => {
     const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
     const dataUrl = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AA==');
     try {
