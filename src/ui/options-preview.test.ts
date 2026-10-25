@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createScene, type Tool } from '../core/types';
+import { annotationBounds } from '../core/annotations';
 import { buildPreviewScene } from './options-preview';
 
 describe('buildPreviewScene', () => {
@@ -43,6 +44,17 @@ describe('buildPreviewScene', () => {
     expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
     scene.activeTool = 'redaction';
     expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
+  });
+
+  it('centers the text sample in the tile at any font size', () => {
+    const scene = createScene();
+    scene.activeTool = 'text';
+    for (const fontSize of [8, 32, 300]) {
+      scene.fontSize = fontSize;
+      const bounds = annotationBounds(buildPreviewScene(scene, undefined)!.object);
+      expect(bounds.x + bounds.w / 2).toBeCloseTo(40);
+      expect(bounds.y + bounds.h / 2).toBeCloseTo(40);
+    }
   });
 
   it('fits large counter and text samples in the tile', () => {

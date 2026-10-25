@@ -1,3 +1,4 @@
+import { annotationBounds } from '../core/annotations';
 import type { Annotation, Scene, Tool } from '../core/types';
 import { drawAnnotation } from '../render/renderer';
 import { drawRedaction } from '../render/redaction';
@@ -31,6 +32,11 @@ export function buildPreviewScene(scene: Scene, selected: Annotation | undefined
       default: return source;
     }
   })();
+  if (object.type === 'text') {
+    // Center the sample on its measured bounds so scaling around the tile center keeps it in view.
+    const bounds = annotationBounds(object);
+    object.position = { x: object.position.x + 40 - (bounds.x + bounds.w / 2), y: object.position.y + 40 - (bounds.y + bounds.h / 2) };
+  }
   const width = object.style.width;
   const extent = object.type === 'counter' ? object.radius * 2
     : object.type === 'text' ? Math.max(object.fontSize * (object.lineHeight ?? 1.2) * 2, object.fontSize * 2.5 + Math.max(0, object.letterSpacing ?? 0) * 2)
