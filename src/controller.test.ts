@@ -18,7 +18,7 @@ vi.mock('./state/autosave', async (importOriginal) => {
 });
 
 import { startApp } from './controller';
-import { serializeScene } from './core/serialize';
+import { MAX_PROJECT_FILE_BYTES, serializeScene } from './core/serialize';
 import * as serialization from './core/serialize';
 
 function flush(): Promise<void> { return new Promise((resolve) => setTimeout(resolve, 0)); }
@@ -255,5 +255,34 @@ describe('controller regressions', () => {
     await flush();
     expect(mocks.host.setScene).toHaveBeenCalledWith(expect.anything(), true);
     confirm.mockRestore();
+  });
+
+  it('rejects an oversized project before reading it', async () => {
+    const root = app();
+    const file = new File(['{}'], 'large.imgmarkup');
+    Object.defineProperty(file, 'size', { value: MAX_PROJECT_FILE_BYTES + 1 });
+    const read = vi.fn(async () => '{}');
+    Object.defineProperty(file, 'text', { value: read });
+    const input = root.querySelector<HTMLInputElement>('input[accept^=".imgmarkup"]')!;
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await flush();
+    expect(root.querySelector('#status')?.textContent).toBe('Project file is too large');
+    expect(read).not.toHaveBeenCalled();
+    expect(mocks.host.setScene).not.toHaveBeenCalled();
+  });
+
+  it('restores missing project settings to their prior defaults', async () => {
+    const root = app();
+    const project = JSON.parse(serializeScene(createScene())) as Record<string, unknown>;
+    delete project.arrowStartHead;
+    delete project.counterFormat;
+    const file = new File([JSON.stringify(project)], 'older.imgmarkup');
+    Object.defineProperty(file, 'text', { value: async () => JSON.stringify(project) });
+    const input = root.querySelector<HTMLInputElement>('input[accept^=".imgmarkup"]')!;
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await flush();
+    expect(mocks.host.setScene).toHaveBeenCalledWith(expect.objectContaining({ arrowStartHead: 'none', counterFormat: 'numeric' }), true);
   });
 });
