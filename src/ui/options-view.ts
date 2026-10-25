@@ -161,6 +161,8 @@ export function mountOptionsView(deps: {
     if (hasOptions || !layersPanel.hidden) queueMicrotask(clampMovedPanels);
     stageHost.dataset.activeTool = scene.activeTool;
     const hasImage = Boolean(scene.image);
+    // Without an image there is nothing to mark up. The rail keeps its width so the first image fits the final canvas size.
+    toolList.closest<HTMLElement>('.toolrail')!.toggleAttribute('data-empty', !hasImage);
     for (const button of toolButtons) { button.setAttribute('aria-pressed', String(button.dataset.tool === scene.activeTool)); button.disabled = !hasImage; }
     // Disabled tools cannot take focus, so the scrollable list must, or keyboard users cannot scroll it.
     if (hasImage) toolList.removeAttribute('tabindex'); else toolList.tabIndex = 0;

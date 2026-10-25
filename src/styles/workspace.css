@@ -1,6 +1,7 @@
 .workspace { display: flex; min-height: 0; flex: 1 1 auto; }
 .editor { position: relative; display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; }
 
+.toolrail[data-empty] > * { visibility: hidden; }
 .toolrail {
   z-index: 10;
   display: flex;

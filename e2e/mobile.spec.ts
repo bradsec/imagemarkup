@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, loadImage, canvasCenter, drag, saveScene } from './editor-helpers';
+import { test, imageBuffer, loadImage, canvasCenter, drag, saveScene } from './editor-helpers';
 
 test('pen options preview and controls fit the mobile palette at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
@@ -424,6 +424,9 @@ test.describe('mobile layout', () => {
     await page.getByText('File', { exact: true }).click();
     await expect(page.locator('details[open]').getByRole('button', { name: /Export image/ })).toBeVisible();
     await page.keyboard.press('Escape');
+    // Tools stay hidden until there is an image to mark up.
+    await expect(page.locator('.toolrail [data-tool="symbol"]')).toBeHidden();
+    await page.locator('.stage-host input[type="file"]').setInputFiles({ name: 'quadrants.png', mimeType: 'image/png', buffer: imageBuffer });
     const rail = page.locator('.toolrail');
     await expect(rail).toHaveCSS('flex-direction', 'column');
     await page.locator('.toolrail [data-tool="symbol"]').scrollIntoViewIfNeeded();
