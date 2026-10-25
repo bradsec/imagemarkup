@@ -27,6 +27,7 @@ export function createInlineTextEditor({ host, store, history, draw, onEscape }:
   let editingId: string | null = null;
   let syncCurrent: (() => void) | null = null;
   let finishCurrent: (() => void) | null = null;
+  let detachCurrent: (() => void) | null = null;
 
   function edit(id: string, checkpoint = true, caretPoint?: Point): void {
     const before = store.get();
@@ -80,8 +81,7 @@ export function createInlineTextEditor({ host, store, history, draw, onEscape }:
       finished = true;
       const text = textarea.value.trimEnd();
       if (checkpoint && text !== object.text) history.record(before);
-      document.removeEventListener('pointerdown', finishFromOutside, true);
-      document.removeEventListener('focusin', finishFromFocus, true);
+      detach();
       editingId = null;
       syncCurrent = null;
       finishCurrent = null;
@@ -102,7 +102,13 @@ export function createInlineTextEditor({ host, store, history, draw, onEscape }:
     function finishFromFocus(event: FocusEvent): void {
       if (!keepsEditorOpen(event.target)) finish();
     }
+    const detach = () => {
+      document.removeEventListener('pointerdown', finishFromOutside, true);
+      document.removeEventListener('focusin', finishFromFocus, true);
+      detachCurrent = null;
+    };
     finishCurrent = finish;
+    detachCurrent = detach;
     document.addEventListener('pointerdown', finishFromOutside, true);
     document.addEventListener('focusin', finishFromFocus, true);
     textarea.addEventListener('keydown', (event) => {
@@ -148,7 +154,10 @@ export function createInlineTextEditor({ host, store, history, draw, onEscape }:
     sync: () => syncCurrent?.(),
     finish: () => finishCurrent?.(),
     discard() {
+      detachCurrent?.();
       editingId = null;
+      syncCurrent = null;
+      finishCurrent = null;
       host.querySelector('.text-editor')?.remove();
     },
   };
