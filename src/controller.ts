@@ -1319,7 +1319,7 @@ export function startApp(root: HTMLElement): void {
   fontInput.type = 'file'; fontInput.accept = '.ttf,.otf,.woff,.woff2'; fontInput.hidden = true;
   fontInput.dataset.fontUpload = 'true';
   root.appendChild(fontInput);
-  root.querySelector<HTMLButtonElement>('[data-action="upload-font"]')!.addEventListener('click', () => fontInput.click());
+  root.querySelector<HTMLButtonElement>('[data-action="upload-font"]')!.addEventListener('click', () => { fontInput.value = ''; fontInput.click(); });
   fontInput.addEventListener('change', async () => {
     const file = fontInput.files?.[0];
     if (!file) return;
