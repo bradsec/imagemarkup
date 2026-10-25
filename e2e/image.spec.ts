@@ -319,6 +319,8 @@ test('toggles rulers from the View menu and remembers the choice', async ({ page
   await expect(page.locator('[data-action="toggle-rulers"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(rulers).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('imagemarkup.preferences') ?? '{}').showRulers)).toBe(true);
+  // After reload, autosave may restore the previous image first; accept the replacement prompt if it appears.
+  page.on('dialog', (dialog) => dialog.accept());
   await loadImage(page);
   await expect(page.locator('.rulers')).toBeVisible();
 });
