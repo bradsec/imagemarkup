@@ -111,6 +111,28 @@ describe('renderScene', () => {
     expect(blue).toBeGreaterThan(10);
   });
 
+  it('renders separate counter fill and border, and omits either when disabled', () => {
+    const count = (paint: { fill: string | null; stroke: boolean }) => {
+      const { surface, canvas } = makeSurface(60, 60);
+      const scene = createScene();
+      scene.image = { source: createCanvas(60, 60) as unknown as CanvasImageSource, width: 60, height: 60, dataUrl: '' };
+      scene.objects.push({ id: 'c', type: 'counter', paint: 'separate', position: { x: 30, y: 30 }, n: 1, radius: 20, fontSize: 1, textColor: '#000000', style: { color: '#0000ff', width: 6, opacity: 1, fill: paint.fill, stroke: paint.stroke } });
+      renderArtwork(surface, scene);
+      const pixels = canvas.getContext('2d').getImageData(0, 0, 60, 60).data;
+      let red = 0; let blue = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        if (pixels[index] > 200 && pixels[index + 2] < 50) red++;
+        if (pixels[index] < 50 && pixels[index + 2] > 200) blue++;
+      }
+      return { red, blue };
+    };
+    const both = count({ fill: '#ff0000', stroke: true });
+    expect(both.red).toBeGreaterThan(500);
+    expect(both.blue).toBeGreaterThan(300);
+    expect(count({ fill: '#ff0000', stroke: false }).blue).toBe(0);
+    expect(count({ fill: null, stroke: true }).red).toBe(0);
+  });
+
   it('renders target reticle and map marker as distinct symbols', () => {
     const renderSymbol = (name: 'pin' | 'target') => {
       const src = createCanvas(100, 100);

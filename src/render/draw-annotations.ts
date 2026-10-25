@@ -140,7 +140,10 @@ export function drawAnnotation(ctx: CanvasRenderingContext2D, object: Annotation
       if (shape === 'square') ctx.rect(x - r, y - r, r * 2, r * 2);
       else if (shape === 'diamond') { ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); }
       else ctx.arc(x, y, r, 0, Math.PI * 2);
-      if (filled) {
+      if (object.paint === 'separate') {
+        if (object.style.fill) { ctx.fillStyle = object.style.fill; ctx.fill(); }
+        if (object.style.stroke === true) ctx.stroke();
+      } else if (filled) {
         ctx.fill();
       } else {
         ctx.lineWidth = Math.max(2, object.style.width);
@@ -149,18 +152,23 @@ export function drawAnnotation(ctx: CanvasRenderingContext2D, object: Annotation
       ctx.fillStyle = object.textColor ?? (filled ? '#ffffff' : object.style.color);
       const label = counterLabel(object.n, object.format);
       let labelSize = object.fontSize ?? r;
-      ctx.font = `bold ${labelSize}px ${object.fontFamily ?? 'system-ui'}`;
+      const font = (size: number) => `${object.fontStyle ?? 'normal'} ${object.fontWeight ?? 'bold'} ${size}px ${object.fontFamily ?? 'system-ui'}`;
+      ctx.font = font(labelSize);
       const availableWidth = r * (shape === 'diamond' ? 1.15 : 1.45);
       const measuredWidth = ctx.measureText(label).width;
       if (measuredWidth > availableWidth) {
         labelSize *= availableWidth / measuredWidth;
-        ctx.font = `bold ${labelSize}px ${object.fontFamily ?? 'system-ui'}`;
+        ctx.font = font(labelSize);
       }
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
       const metrics = ctx.measureText(label);
       const baseline = y + ((metrics.actualBoundingBoxAscent ?? labelSize * .75) - (metrics.actualBoundingBoxDescent ?? labelSize * .25)) / 2;
       ctx.fillText(label, x, baseline);
+      if (object.underline) {
+        const labelWidth = ctx.measureText(label).width;
+        ctx.fillRect(x - labelWidth / 2, baseline + labelSize * 0.1, labelWidth, Math.max(1, labelSize / 16));
+      }
     }
   } else {
     const angle = Math.atan2(object.end.y - object.start.y, object.end.x - object.start.x);

@@ -63,8 +63,11 @@ export function makeToolAnnotation(id: string, scene: Scene, point: Point, previ
   let object = createAnnotation(id, scene.activeTool as Annotation['type'], point, scene.toolStyle);
   if (object.type === 'counter') object = {
     ...object, n: scene.counterNext, radius: scene.counterSize, shape: scene.counterShape,
-    format: scene.counterFormat, filled: scene.counterFilled, fontSize: scene.counterFontSize,
+    format: scene.counterFormat, paint: 'separate', fontSize: scene.counterFontSize,
     fontFamily: scene.counterFontFamily, textColor: scene.counterTextColor,
+    fontWeight: scene.counterFontWeight, fontStyle: scene.counterFontStyle, underline: scene.counterUnderline,
+    // An unset fill (a style inherited from a stroke-only tool) falls back to a solid counter so it is never invisible.
+    style: object.style.fill === undefined ? { ...object.style, fill: object.style.color, stroke: false } : object.style,
   };
   if (object.type === 'symbol') object = { ...object, name: scene.symbolName, points: scene.symbolPoints, innerRatio: scene.symbolInnerRatio, sides: scene.symbolSides };
   if (object.type === 'arrow') object = { ...object, startHead: scene.arrowStartHead, endHead: scene.arrowEndHead };

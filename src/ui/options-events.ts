@@ -4,7 +4,7 @@ import { fitViewport, zoomAt } from '../core/viewport';
 import { loadUploadedFonts, saveUploadedFont } from '../fonts/uploaded';
 import { mountCanvasHost } from './canvas-host';
 import { selectedLayerIds } from './layers';
-import { queryOptionControls } from './options-view';
+import { counterFormatting, queryOptionControls } from './options-view';
 
 export function mountOptionEvents(deps: { root: HTMLElement; store: Store<Scene>; canvasHost: ReturnType<typeof mountCanvasHost>; controls: ReturnType<typeof queryOptionControls>; stageHost: HTMLElement; statusEl: HTMLElement; formatMeasurement: (pixels: number) => string; syncUi: () => void }): Promise<void> {
   const { root, store, canvasHost, controls, stageHost, statusEl, formatMeasurement, syncUi } = deps;
@@ -34,19 +34,36 @@ export function mountOptionEvents(deps: { root: HTMLElement; store: Store<Scene>
       ...scene,
       counterShape: shape,
       counterFormat: format,
-      counterFilled: true,
       counterSize: size,
       counterFontSize: labelSize,
       counterFontFamily: family,
       counterTextColor: textColor,
       objects: scene.objects.map((object) => object.id === scene.selectedId && object.type === 'counter'
-        ? { ...object, shape, format, filled: true, radius: size, fontFamily: family, fontSize: labelSize, textColor }
+        ? { ...object, shape, format, radius: size, fontFamily: family, fontSize: labelSize, textColor }
         : object),
     }));
     root.querySelector<HTMLOutputElement>('[data-value="counter-size"]')!.value = formatMeasurement(Number(counterSize.value));
     root.querySelector<HTMLOutputElement>('[data-value="counter-font-size"]')!.value = formatMeasurement(Number(counterFontSize.value));
   }
   counterShape.addEventListener('change', updateCounter);
+  // Counter text formatting toggles the default for new counters and the selected counter together.
+  for (const key of ['bold', 'italic', 'underline'] as const) {
+    root.querySelector<HTMLButtonElement>(`[data-action="counter-${key}"]`)!.addEventListener('click', () => {
+      const scene = store.get();
+      const selected = scene.objects.find((object) => object.id === scene.selectedId && object.type === 'counter');
+      const next = !counterFormatting(scene, selected?.type === 'counter' ? selected : undefined)[key];
+      if (selected) canvasHost.checkpointScene();
+      const weight = next ? 'bold' as const : 'normal' as const;
+      const slant = next ? 'italic' as const : 'normal' as const;
+      const scenePatch = key === 'bold' ? { counterFontWeight: weight } : key === 'italic' ? { counterFontStyle: slant } : { counterUnderline: next };
+      const objectPatch = key === 'bold' ? { fontWeight: weight } : key === 'italic' ? { fontStyle: slant } : { underline: next };
+      store.update((current) => ({
+        ...current,
+        ...scenePatch,
+        objects: current.objects.map((object) => object.id === selected?.id && object.type === 'counter' ? { ...object, ...objectPatch } : object),
+      }));
+    });
+  }
   counterFormat.addEventListener('change', updateCounter);
   counterValue.addEventListener('change', () => {
     const value = Math.max(1, Math.min(9_999, Math.round(Number(counterValue.value) || 1)));
@@ -89,12 +106,12 @@ export function mountOptionEvents(deps: { root: HTMLElement; store: Store<Scene>
       const multiSymbols = scene.selectedIds.length > 1 && scene.selectedIds.every((id) => scene.objects.some((object) => object.id === id && object.type === 'symbol' && !object.locked));
       const selected = scene.objects.find((object) => object.id === (multiSymbols ? scene.selectedIds[0] : scene.selectedId));
       const context = selected?.type ?? scene.activeTool;
-      const canDisableStroke = context === 'rect' || context === 'ellipse' || context === 'symbol';
-      const style = { color: color.value, width: Number(width.value), opacity: Number(opacity.value) / 100, fill: context === 'redaction' && (selected?.type === 'redaction' ? selected.mode : scene.redactionMode) === 'solid' ? fill.value : fillEnabled.checked ? fill.value : context === 'symbol' ? null : undefined, stroke: canDisableStroke ? strokeEnabled.checked : true, lineCap: lineCap.value as CanvasLineCap, lineJoin: lineJoin.value as CanvasLineJoin };
+      const canDisableStroke = context === 'rect' || context === 'ellipse' || context === 'symbol' || context === 'counter';
+      const style = { color: color.value, width: Number(width.value), opacity: Number(opacity.value) / 100, fill: context === 'redaction' && (selected?.type === 'redaction' ? selected.mode : scene.redactionMode) === 'solid' ? fill.value : fillEnabled.checked ? fill.value : context === 'symbol' || context === 'counter' ? null : undefined, stroke: canDisableStroke ? strokeEnabled.checked : true, lineCap: lineCap.value as CanvasLineCap, lineJoin: lineJoin.value as CanvasLineJoin };
       return {
         ...scene,
         toolStyle: style,
-        objects: scene.objects.map((object) => (object.id === scene.selectedId || (multiSymbols && scene.selectedIds.includes(object.id))) ? { ...object, ...(object.type === 'symbol' ? { paint: 'separate' as const } : {}), style } : object),
+        objects: scene.objects.map((object) => (object.id === scene.selectedId || (multiSymbols && scene.selectedIds.includes(object.id))) ? { ...object, ...(object.type === 'symbol' || object.type === 'counter' ? { paint: 'separate' as const } : {}), style } : object),
       };
     });
     root.querySelector<HTMLOutputElement>('[data-value="width"]')!.value = formatMeasurement(Number(width.value));

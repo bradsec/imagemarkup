@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationStyle, Scene, Tool } from './types';
+import type { Annotation, AnnotationStyle, CounterAnnotation, Scene, Tool } from './types';
 import type { Point, Rect, Viewport } from './geometry';
 import { MATERIAL_SYMBOLS } from './material-symbols';
 
@@ -48,6 +48,9 @@ export interface SerializedScene {
   counterFontSize?: number;
   counterFontFamily?: string;
   counterTextColor?: string;
+  counterFontWeight?: Scene['counterFontWeight'];
+  counterFontStyle?: Scene['counterFontStyle'];
+  counterUnderline?: boolean;
 }
 
 const tools: Tool[] = ['select', 'pan', 'rect', 'ellipse', 'line', 'arrow', 'pen', 'highlighter', 'text', 'counter', 'redaction', 'crop', 'image', 'symbol'];
@@ -126,7 +129,11 @@ function annotation(value: unknown): value is Annotation {
     && (value.fontFamily === undefined || (typeof value.fontFamily === 'string' && value.fontFamily.length <= 200))
     && (value.fontSize === undefined || (finite(value.fontSize) && value.fontSize > 0 && value.fontSize <= 1_000))
     && (value.textColor === undefined || (typeof value.textColor === 'string' && /^#[0-9a-f]{6}$/i.test(value.textColor)))
-    && (value.format === undefined || value.format === 'numeric' || value.format === 'alpha' || value.format === 'roman');
+    && (value.format === undefined || value.format === 'numeric' || value.format === 'alpha' || value.format === 'roman')
+    && (value.paint === undefined || value.paint === 'separate')
+    && (value.fontWeight === undefined || value.fontWeight === 'normal' || value.fontWeight === 'bold')
+    && (value.fontStyle === undefined || value.fontStyle === 'normal' || value.fontStyle === 'italic')
+    && (value.underline === undefined || typeof value.underline === 'boolean');
   if (value.type === 'redaction') return rect(value.rect) && (value.mode === 'pixelate' || value.mode === 'blur' || value.mode === 'solid') && finite(value.strength) && value.strength > 0 && value.strength <= 100;
   return false;
 }
@@ -191,7 +198,10 @@ function valid(value: unknown): value is SerializedScene {
     && (value.counterNext === undefined || (Number.isInteger(value.counterNext) && finite(value.counterNext) && value.counterNext >= 1 && value.counterNext <= 9_999))
     && (value.counterFontSize === undefined || (finite(value.counterFontSize) && value.counterFontSize > 0 && value.counterFontSize <= 1_000))
     && (value.counterFontFamily === undefined || (typeof value.counterFontFamily === 'string' && value.counterFontFamily.length <= 200))
-    && (value.counterTextColor === undefined || (typeof value.counterTextColor === 'string' && /^#[0-9a-f]{6}$/i.test(value.counterTextColor)));
+    && (value.counterTextColor === undefined || (typeof value.counterTextColor === 'string' && /^#[0-9a-f]{6}$/i.test(value.counterTextColor)))
+    && (value.counterFontWeight === undefined || value.counterFontWeight === 'normal' || value.counterFontWeight === 'bold')
+    && (value.counterFontStyle === undefined || value.counterFontStyle === 'normal' || value.counterFontStyle === 'italic')
+    && (value.counterUnderline === undefined || typeof value.counterUnderline === 'boolean');
 }
 
 export function serializeScene(scene: Scene): string {
@@ -231,6 +241,9 @@ export function serializeScene(scene: Scene): string {
     counterFontSize: scene.counterFontSize,
     counterFontFamily: scene.counterFontFamily,
     counterTextColor: scene.counterTextColor,
+    counterFontWeight: scene.counterFontWeight,
+    counterFontStyle: scene.counterFontStyle,
+    counterUnderline: scene.counterUnderline,
   };
   dto.objects = dto.objects.map((object) => object.type === 'image' ? { ...object, source: undefined } : object);
   if (dto.watermark?.kind === 'image') dto.watermark = { ...dto.watermark, source: undefined };
@@ -240,7 +253,7 @@ export function serializeScene(scene: Scene): string {
   return json;
 }
 
-export function parseScene(json: string): SerializedScene & Pick<Scene, 'arrowStartHead' | 'arrowEndHead' | 'letterSpacing' | 'lineHeight' | 'symbolPoints' | 'symbolInnerRatio' | 'symbolSides'> {
+export function parseScene(json: string): SerializedScene & Pick<Scene, 'arrowStartHead' | 'arrowEndHead' | 'letterSpacing' | 'lineHeight' | 'symbolPoints' | 'symbolInnerRatio' | 'symbolSides' | 'counterFontWeight' | 'counterFontStyle' | 'counterUnderline'> {
   let value: unknown;
   try {
     value = JSON.parse(json);
@@ -259,10 +272,28 @@ export function parseScene(json: string): SerializedScene & Pick<Scene, 'arrowSt
     showOverflow: value.showOverflow ?? false,
     arrowStartHead: value.arrowStartHead ?? 'none',
     arrowEndHead: value.arrowEndHead ?? 'open',
-    objects: value.objects.map((object) => object.type === 'text'
+    counterFontWeight: value.counterFontWeight ?? 'bold',
+    counterFontStyle: value.counterFontStyle ?? 'normal',
+    counterUnderline: value.counterUnderline ?? false,
+    objects: value.objects.map((object) => object.type === 'counter' ? separateCounterPaint(object) : object.type === 'text'
       ? { ...object, fontSize: Math.ceil(object.fontSize), letterSpacing: Math.max(-200, Math.min(1000, Math.round(object.letterSpacing ?? 0))), lineHeight: Math.max(0.5, Math.min(3, object.lineHeight ?? 1.2)) }
       : object.type === 'symbol'
         ? { ...object, ...(object.points === undefined ? {} : { points: Math.max(3, Math.min(24, Math.round(object.points))) }), ...(object.innerRatio === undefined ? {} : { innerRatio: Math.max(0.2, Math.min(0.9, object.innerRatio)) }), ...(object.sides === undefined ? {} : { sides: Math.max(3, Math.min(12, Math.round(object.sides))) }) }
         : object),
+  };
+}
+
+/** Converts a legacy single-color counter into the separate fill and border model without changing how it looks. */
+function separateCounterPaint(counter: CounterAnnotation): CounterAnnotation {
+  if (counter.paint === 'separate') return { ...counter, fontWeight: counter.fontWeight ?? 'bold' };
+  const { filled = true, ...rest } = counter;
+  return {
+    ...rest,
+    paint: 'separate',
+    fontWeight: counter.fontWeight ?? 'bold',
+    textColor: counter.textColor ?? (filled ? '#ffffff' : counter.style.color),
+    style: filled
+      ? { ...counter.style, fill: counter.style.color, stroke: false }
+      : { ...counter.style, fill: null, stroke: true, width: Math.max(2, counter.style.width) },
   };
 }

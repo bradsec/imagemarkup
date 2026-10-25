@@ -1,12 +1,18 @@
 import { annotationBounds } from '../core/annotations';
 import { MATERIAL_SYMBOLS } from '../core/material-symbols';
-import type { Scene, Tool } from '../core/types';
+import type { CounterAnnotation, Scene, Tool } from '../core/types';
 import type { Store } from '../state/store';
 import { mountCanvasHost } from './canvas-host';
 import { mountOptionsPreview } from './options-preview';
 import { mountPanels } from './panels';
 import type { EditorPreferences } from './preferences';
 import { selectedLayerIds } from './layers';
+
+/** Current counter text formatting: the selected counter's own values, or the defaults for new counters. */
+export function counterFormatting(scene: Scene, counter: CounterAnnotation | undefined): { bold: boolean; italic: boolean; underline: boolean } {
+  if (counter) return { bold: (counter.fontWeight ?? 'bold') === 'bold', italic: counter.fontStyle === 'italic', underline: Boolean(counter.underline) };
+  return { bold: scene.counterFontWeight === 'bold', italic: scene.counterFontStyle === 'italic', underline: scene.counterUnderline };
+}
 
 export function queryOptionControls(root: HTMLElement) {
   const color = root.querySelector<HTMLInputElement>('[data-style="color"]')!;
@@ -91,7 +97,7 @@ export function mountOptionsView(deps: {
   const optionMap: Record<string, string[]> = {
     select: [], rect: ['color', 'stroke-toggle', 'fill', 'width', 'opacity', 'line-join'], ellipse: ['color', 'stroke-toggle', 'fill', 'width', 'opacity'],
     line: ['color', 'width', 'opacity', 'line-cap'], arrow: ['color', 'width', 'opacity', 'line-cap', 'arrowheads'], pen: ['color', 'width', 'opacity', 'line-cap'],
-    highlighter: ['color', 'width', 'opacity', 'line-cap'], text: ['color', 'opacity', 'text'], counter: ['color', 'opacity', 'counter'],
+    highlighter: ['color', 'width', 'opacity', 'line-cap'], text: ['color', 'opacity', 'text'], counter: ['color', 'stroke-toggle', 'fill', 'width', 'opacity', 'counter'],
     redaction: ['redaction'], crop: ['crop'], image: ['opacity'], symbol: ['color', 'stroke-toggle', 'fill', 'width', 'opacity', 'symbol'],
   };
   function syncUi(): void {
@@ -208,7 +214,7 @@ export function mountOptionsView(deps: {
       root.querySelector<HTMLOutputElement>('[data-value="width"]')!.value = formatMeasurement(Number(width.value));
       root.querySelector<HTMLOutputElement>('[data-value="opacity"]')!.value = `${opacity.value}%`;
       const colorLabel = root.querySelector<HTMLElement>('[data-style-label="color"]')!;
-      colorLabel.textContent = context === 'counter' ? 'Shape color' : supportsStrokeToggle || context === 'text' ? 'Color' : 'Stroke';
+      colorLabel.textContent = supportsStrokeToggle || context === 'text' ? 'Color' : 'Stroke';
       symbol.value = selected?.type === 'symbol' ? selected.name : scene.symbolName;
       symbolPoints.value = String(selected?.type === 'symbol' ? selected.points ?? 5 : scene.symbolPoints);
       symbolInnerRatio.value = String(selected?.type === 'symbol' ? selected.innerRatio ?? 0.43 : scene.symbolInnerRatio);
@@ -236,6 +242,7 @@ export function mountOptionsView(deps: {
       counterFontSize.value = String(counterSelected?.fontSize ?? scene.counterFontSize);
       counterFont.value = counterSelected?.fontFamily ?? scene.counterFontFamily;
       counterTextColor.value = counterSelected?.textColor ?? (counterSelected && !(counterSelected.filled ?? true) ? counterSelected.style.color : scene.counterTextColor);
+      for (const [key, pressed] of Object.entries(counterFormatting(scene, counterSelected ?? undefined))) root.querySelector(`[data-action="counter-${key}"]`)!.setAttribute('aria-pressed', String(pressed));
       root.querySelector<HTMLOutputElement>('[data-value="counter-size"]')!.value = formatMeasurement(cSize);
       root.querySelector<HTMLOutputElement>('[data-value="counter-font-size"]')!.value = formatMeasurement(Number(counterFontSize.value));
     }

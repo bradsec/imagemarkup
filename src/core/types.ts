@@ -88,9 +88,14 @@ export interface CounterAnnotation extends AnnotationBase {
   n: number;
   radius: number;
   shape?: CounterShape;
+  /** Legacy single-color paint; counters with `paint: 'separate'` use style.fill and style.stroke instead. */
   filled?: boolean;
+  paint?: 'separate';
   fontFamily?: string;
   fontSize?: number;
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
+  underline?: boolean;
   format?: CounterFormat;
   textColor?: string;
 }
@@ -162,6 +167,9 @@ export interface Scene {
   counterFontSize: number;
   counterFontFamily: string;
   counterTextColor: string;
+  counterFontWeight: 'normal' | 'bold';
+  counterFontStyle: 'normal' | 'italic';
+  counterUnderline: boolean;
 }
 
 export function createScene(): Scene {
@@ -202,5 +210,8 @@ export function createScene(): Scene {
     counterFontSize: 18,
     counterFontFamily: 'system-ui',
     counterTextColor: '#ffffff',
+    counterFontWeight: 'bold',
+    counterFontStyle: 'normal',
+    counterUnderline: false,
   };
 }

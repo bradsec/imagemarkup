@@ -162,4 +162,27 @@ describe('scene serialization', () => {
     scene.objects[0].style.fill = 'transparent';
     expect(() => parseScene(serializeScene(scene))).toThrow('Invalid or unsupported');
   });
+  it('converts legacy counters to separate fill and border paint', () => {
+    const scene = createScene();
+    scene.objects = [
+      { id: 'filled', type: 'counter', position: { x: 1, y: 1 }, n: 1, radius: 10, style: { color: '#ff0000', width: 2, opacity: 1 } },
+      { id: 'outline', type: 'counter', position: { x: 1, y: 1 }, n: 2, radius: 10, filled: false, style: { color: '#00ff00', width: 1, opacity: 1 } },
+    ];
+    const [filled, outline] = parseScene(serializeScene(scene)).objects;
+    expect(filled).toMatchObject({ paint: 'separate', textColor: '#ffffff', fontWeight: 'bold', style: { fill: '#ff0000', stroke: false } });
+    expect(outline).toMatchObject({ paint: 'separate', textColor: '#00ff00', style: { fill: null, stroke: true, color: '#00ff00', width: 2 } });
+    expect(filled).not.toHaveProperty('filled');
+  });
+
+  it('round-trips counter text formatting and defaults', () => {
+    const scene = createScene();
+    scene.counterFontWeight = 'normal';
+    scene.counterFontStyle = 'italic';
+    scene.counterUnderline = true;
+    scene.objects = [{ id: 'c', type: 'counter', paint: 'separate', position: { x: 1, y: 1 }, n: 1, radius: 10, fontWeight: 'normal', fontStyle: 'italic', underline: true, style: { color: '#ff0000', width: 2, opacity: 1, fill: '#00ff00', stroke: true } }];
+    const parsed = parseScene(serializeScene(scene));
+    expect(parsed).toMatchObject({ counterFontWeight: 'normal', counterFontStyle: 'italic', counterUnderline: true });
+    expect(parsed.objects[0]).toMatchObject({ fontWeight: 'normal', fontStyle: 'italic', underline: true });
+    expect(() => parseScene(serializeScene({ ...scene, objects: [{ ...scene.objects[0], fontWeight: 'heavy' } as never] }))).toThrow();
+  });
 });

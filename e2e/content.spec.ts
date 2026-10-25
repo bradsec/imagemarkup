@@ -469,7 +469,7 @@ test('applies every contextual option family to new objects', async ({ page }) =
   await page.getByRole('button', { name: 'Diamond counter' }).click();
   await page.getByRole('button', { name: 'Roman numeral counters' }).click();
   await expect(page.locator('[data-style="counter-fill"]')).toHaveCount(0);
-  await page.locator('[data-style="color"]').fill('#123456');
+  await page.locator('[data-style="fill"]').fill('#123456');
   await page.locator('[data-style="counter-text-color"]').fill('#abcdef');
   await page.locator('[data-style="counter-font"]').selectOption('monospace');
   await page.mouse.click(center.x, center.y);
@@ -488,7 +488,7 @@ test('applies every contextual option family to new objects', async ({ page }) =
 
   const scene = await saveScene(page);
   expect(scene.objects[0]).toMatchObject({ type: 'text', fontFamily: 'monospace', fontSize: 24, fontWeight: 'bold', align: 'center' });
-  expect(scene.objects[1]).toMatchObject({ type: 'counter', shape: 'diamond', format: 'roman', filled: true, fontFamily: 'monospace', textColor: '#abcdef', style: { color: '#123456' } });
+  expect(scene.objects[1]).toMatchObject({ type: 'counter', paint: 'separate', shape: 'diamond', format: 'roman', fontFamily: 'monospace', textColor: '#abcdef', style: { fill: '#123456', stroke: false } });
   expect(scene.objects[2]).toMatchObject({ type: 'redaction', mode: 'blur', strength: 18 });
   expect(scene.objects[3]).toMatchObject({ type: 'symbol', name: 'target' });
 });
@@ -547,4 +547,21 @@ test('starts unvisited drawing tools at full opacity independently of translucen
   await page.locator('.toolrail [data-tool="symbol"]').click();
   await expect(page.locator('[data-style="opacity"]')).toHaveValue('100');
   expect((await saveScene(page)).objects.map((object: any) => object.style.opacity)).toEqual([0.35, 1]);
+});
+
+test('gives counters a separate border and text formatting', async ({ page }) => {
+  await loadImage(page);
+  await page.locator('.toolrail [data-tool="counter"]').click();
+  await page.getByRole('button', { name: 'Toggle stroke' }).click();
+  await page.locator('[data-style="color"]').fill('#00ff00');
+  await page.locator('[data-style="width"]').fill('5');
+  await page.getByRole('button', { name: 'Italic counter text' }).click();
+  await page.getByRole('button', { name: 'Underline counter text' }).click();
+  await page.getByRole('button', { name: 'Bold counter text' }).click();
+  await expect(page.getByRole('button', { name: 'Bold counter text' })).toHaveAttribute('aria-pressed', 'false');
+  const center = await canvasCenter(page);
+  await page.mouse.click(center.x, center.y);
+  const [counter] = (await saveScene(page)).objects;
+  expect(counter).toMatchObject({ type: 'counter', paint: 'separate', fontWeight: 'normal', fontStyle: 'italic', underline: true, style: { stroke: true, color: '#00ff00', width: 5 } });
+  expect(counter.style.fill).toBeTruthy();
 });
