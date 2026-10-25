@@ -21,12 +21,28 @@ describe('buildPreviewScene', () => {
     scene.toolStyle.width = 120;
     const wide = buildPreviewScene(scene, undefined)!;
     expect(wide.scale).toBeLessThan(1);
-    expect(wide.widthLabel).toBe('120 px');
+    expect(wide.sizeLabel).toBe('120 px');
     const selected = { ...wide.object, style: { ...wide.object.style, width: 8, color: '#123456' } };
     const preview = buildPreviewScene(scene, selected)!;
     expect(preview.object.style).toEqual(selected.style);
     expect(preview.scale).toBe(1);
     expect(buildPreviewScene(scene, { ...selected, locked: true })).toBeNull();
+  });
+
+  it('labels the control value whenever the sample is drawn below true size', () => {
+    const scene = createScene();
+    scene.activeTool = 'text'; scene.fontSize = 300;
+    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBe('300 px');
+    scene.fontSize = 12;
+    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
+    scene.activeTool = 'counter'; scene.counterSize = 64;
+    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBe('64 px');
+    scene.activeTool = 'arrow'; scene.toolStyle.width = 12;
+    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBe('12 px');
+    scene.activeTool = 'rect'; scene.toolStyle.width = 4;
+    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
+    scene.activeTool = 'redaction';
+    expect(buildPreviewScene(scene, undefined)?.sizeLabel).toBeNull();
   });
 
   it('fits large counter and text samples in the tile', () => {

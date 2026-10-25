@@ -9,7 +9,8 @@ const PREVIEW_TOOLS: Tool[] = ['pen', 'highlighter', 'line', 'arrow', 'rect', 'e
 export interface PreviewScene {
   object: Annotation;
   scale: number;
-  widthLabel: string | null;
+  /** Control value shown when the tile cannot draw the sample at true size. */
+  sizeLabel: string | null;
 }
 
 export function buildPreviewScene(scene: Scene, selected: Annotation | undefined): PreviewScene | null {
@@ -36,7 +37,9 @@ export function buildPreviewScene(scene: Scene, selected: Annotation | undefined
     : object.type === 'arrow' ? 52 + width * 6
     : 52 + width;
   const scale = Math.min(1, 68 / extent);
-  return { object, scale, widthLabel: width > 24 && object.type !== 'text' && object.type !== 'counter' && object.type !== 'redaction' ? `${Math.round(width)} px` : null };
+  const size = object.type === 'text' ? object.fontSize : object.type === 'counter' ? object.radius : width;
+  const labelled = object.type !== 'redaction' && (scale < 1 || (width > 24 && object.type !== 'text' && object.type !== 'counter'));
+  return { object, scale, sizeLabel: labelled ? `${Math.round(size)} px` : null };
 }
 
 export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement, getScene: () => Scene, getSelected: () => Annotation | undefined): () => void {
@@ -91,9 +94,14 @@ export function mountOptionsPreview(tile: HTMLElement, canvas: HTMLCanvasElement
     ctx.translate(-40, -40);
     drawAnnotation(ctx, object);
     ctx.restore();
-    if (preview.widthLabel) {
-      ctx.fillStyle = '#26333f'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
-      ctx.fillText(preview.widthLabel, 76, 76);
+    if (preview.sizeLabel) {
+      // Backing plate keeps the label legible over large or dark samples.
+      ctx.font = '600 10px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+      const labelWidth = ctx.measureText(preview.sizeLabel).width;
+      ctx.fillStyle = 'rgba(255, 255, 255, .88)';
+      ctx.fillRect(76 - labelWidth - 4, 65, labelWidth + 6, 14);
+      ctx.fillStyle = '#26333f';
+      ctx.fillText(preview.sizeLabel, 77, 76);
     }
   }
 
