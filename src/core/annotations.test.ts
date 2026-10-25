@@ -79,7 +79,7 @@ describe('annotations', () => {
     expect(after.find(({ handle }) => handle === 'end')!.point).toMatchObject({ x: 40, y: 20 });
   });
 
-  it('constrains handle resizing with Adobe-style modifier keys', () => {
+  it('constrains handle resizing with standard Shift and Alt modifier keys', () => {
     const rect = resizeAnnotation(createAnnotation('rect', 'rect', { x: 10, y: 20 }, style), { x: 10, y: 20 }, { x: 50, y: 40 });
     const proportional = resizeFromHandle(rect, 'se', { x: 90, y: 70 }, { constrainProportions: true });
     expect(annotationBounds(proportional).w / annotationBounds(proportional).h).toBeCloseTo(2);

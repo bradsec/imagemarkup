@@ -57,7 +57,7 @@ test('keeps primary regions and touch targets usable at 320 by 256 CSS pixels', 
   expect(tools?.y).toBeGreaterThanOrEqual(header?.height ?? 0);
   expect((tools?.y ?? 0) + (tools?.height ?? 0)).toBeLessThanOrEqual(256);
 
-  // Compact Photoshop-style swatches: each control meets the WCAG 2.5.8 minimum, the docked group a 44px touch area.
+  // Compact overlapping stroke and fill swatches: each control meets the WCAG 2.5.8 minimum, the docked group a 44px touch area.
   const group = await page.locator('.tool-colors').boundingBox();
   expect(group?.width).toBeGreaterThanOrEqual(44);
   expect(group?.height).toBeGreaterThanOrEqual(44);
