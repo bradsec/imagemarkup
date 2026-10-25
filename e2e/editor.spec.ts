@@ -579,7 +579,7 @@ test('edits styles and deletes the selected canvas object with the keyboard', as
   expect((await saveScene(page)).objects).toHaveLength(0);
 });
 
-test('offers and applies the Microsoft standard color palette', async ({ page }) => {
+test('offers and applies the standard color palette', async ({ page }) => {
   await loadImage(page);
   await page.locator('.toolrail [data-tool="rect"]').click();
   await page.locator('[data-color-presets="color"]').getByRole('button', { name: 'Purple' }).click();
