@@ -38,9 +38,10 @@ dialog::backdrop { background: rgb(7 9 12 / 72%); }
 .dialog-form select, .dialog-form input:not([type="checkbox"]):not([type="color"]) { max-width: 100%; }
 .dialog-form .check-label { display: flex; align-items: center; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 3px; }
-.dialog-actions button, .transform-grid button { padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-raised); color: var(--text); }
+.dialog-actions button, .transform-grid button, .dialog-form .size-presets button { padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-raised); color: var(--text); }
 .dialog-actions button:last-child { border-color: #57add6; background: var(--accent-press); }
 .dialog-form a { color: var(--accent-hover); text-decoration: none; }
+.dialog-form p a { text-decoration: underline; text-underline-offset: 2px; }
 .dialog-form a:hover { text-decoration: underline; }
 .export-overflow-note { margin: 0; color: var(--text-dim); font-size: 12px; }
 .range-with-value { display: flex; align-items: center; gap: 10px; }
