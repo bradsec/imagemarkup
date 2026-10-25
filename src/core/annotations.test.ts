@@ -29,6 +29,12 @@ describe('annotations', () => {
     expect(hitTest([line], { x: 10, y: 30 }, 2)).toBeNull();
   });
 
+  it('selects a single-point pen mark within its stroke', () => {
+    const mark = createAnnotation('mark', 'pen', { x: 10, y: 10 }, style);
+    expect(hitTest([mark], { x: 11, y: 10 }, 0)?.id).toBe('mark');
+    expect(hitTest([mark], { x: 13, y: 10 }, 0)).toBeNull();
+  });
+
   it('includes a symbol outline in visual bounds and hit testing', () => {
     const symbol = { id: 'symbol', type: 'symbol' as const, name: 'ring' as const, rect: { x: 10, y: 10, w: 30, h: 30 }, style: { color: '#ff0000', width: 10, opacity: 1, stroke: true } };
     expect(annotationVisualBounds(symbol)).toEqual({ x: 5, y: 5, w: 40, h: 40 });

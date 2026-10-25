@@ -95,7 +95,9 @@ export function hitTest(objects: Annotation[], point: Point, tolerance: number):
       if (rx > 0 && ry > 0 && ((test.x - x - w / 2) / rx) ** 2 + ((test.y - y - h / 2) / ry) ** 2 <= 1) return object;
     } else if ('start' in object && pointSegmentDistance(test, object.start, object.end) <= tolerance + object.style.width / 2) {
       return object;
-    } else if (isPathAnnotation(object) && object.points.some((start, index) => index > 0 && pointSegmentDistance(test, object.points[index - 1], start) <= tolerance + object.style.width / 2)) {
+    } else if (isPathAnnotation(object) && (object.points.length === 1
+      ? Math.hypot(test.x - object.points[0].x, test.y - object.points[0].y) <= tolerance + object.style.width / 2
+      : object.points.some((start, index) => index > 0 && pointSegmentDistance(test, object.points[index - 1], start) <= tolerance + object.style.width / 2))) {
       return object;
     } else if ('position' in object) {
       const bounds = annotationBounds(object);
