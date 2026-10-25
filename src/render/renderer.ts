@@ -4,8 +4,8 @@ import type { Rect } from '../core/geometry';
 export type { Surface } from './surface';
 import type { Surface } from './surface';
 import { drawRedaction } from './redaction';
-import { drawAnnotation } from './annotations';
-export { counterLabel, drawAnnotation } from './annotations';
+import { drawAnnotation } from './draw-annotations';
+export { counterLabel, drawAnnotation } from './draw-annotations';
 
 const REDACTION_TILE_SIZE = 1024;
 const REDACTION_TILE_BLEED = 200;
