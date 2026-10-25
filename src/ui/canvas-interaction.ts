@@ -5,7 +5,9 @@ import { panBy, zoomAt } from '../core/viewport';
 
 const WHEEL_STEP = 0.0015;
 const WHEEL_STEP_FINE = 0.0005;
-const ROTATE_CURSOR = 'url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cg stroke=%22white%22 stroke-width=%224%22%3E%3Cpath d=%22M20 11a8 8 0 1 0-2.3 5.7%22/%3E%3Cpath d=%22M20 4v7h-7%22/%3E%3C/g%3E%3Cg stroke=%22%23171a1f%22 stroke-width=%222%22%3E%3Cpath d=%22M20 11a8 8 0 1 0-2.3 5.7%22/%3E%3Cpath d=%22M20 4v7h-7%22/%3E%3C/g%3E%3C/svg%3E") 12 12, crosshair';
+const ROTATE_CURSOR_PATHS = '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />';
+// Two strokes keep the Lucide rotate icon visible over light and dark images.
+const ROTATE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="white" stroke-width="4">${ROTATE_CURSOR_PATHS}</g><g stroke="#171a1f" stroke-width="2">${ROTATE_CURSOR_PATHS}</g></svg>`)}") 12 12, crosshair`;
 
 export function wheelZoom(scene: Scene, anchor: Point, deltaY: number, fine: boolean): Viewport {
   return zoomAt(scene.viewport, anchor, Math.exp(-deltaY * (fine ? WHEEL_STEP_FINE : WHEEL_STEP)));

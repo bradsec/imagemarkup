@@ -39,8 +39,6 @@
 .tool-sep { width: 22px; height: 1px; margin: 4px auto; background: var(--border); }
 .tool-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ico { display: block; flex: 0 0 auto; }
-/* Duotone fill behind tool icon outlines; stays currentColor so pressed, hover and forced-colors states follow the text color. */
-.ico .tone { fill: currentColor; fill-opacity: .18; stroke: none; }
 .tool-colors {
   position: relative;
   flex: 0 0 92px;

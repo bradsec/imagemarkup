@@ -284,7 +284,7 @@ export function renderShell(root: HTMLElement): Shell {
           <div class="dialog-heading"><h2 id="about-title" tabindex="-1">About imagemarkup</h2><p>Version ${__APP_VERSION__}</p></div>
           <p>A private, browser-based image annotation editor. Images and projects remain on your device unless you choose to share them.</p>
           <p>Created by Mark Bradley (<a href="https://github.com/bradsec" target="_blank" rel="noopener noreferrer">BRADSEC</a>).</p>
-          <p>Bundled assets include Google Material Symbols, fonts under the SIL Open Font License, the Primer Octicons GitHub mark, and legacy Font Awesome hand gestures. <a href="./THIRD-PARTY-LICENSES.txt" target="_blank" rel="noopener noreferrer">View third-party licenses</a>.</p>
+          <p>Bundled assets include Lucide interface icons, Google Material Symbols for annotation symbols, fonts under the SIL Open Font License, the Primer Octicons GitHub mark, and legacy Font Awesome hand gestures. <a href="./THIRD-PARTY-LICENSES.txt" target="_blank" rel="noopener noreferrer">View third-party licenses</a>.</p>
           <a class="about-repo-link" href="https://github.com/bradsec/imagemarkup" target="_blank" rel="noopener noreferrer">View imagemarkup on GitHub</a>
           <p class="about-support-copy">If you find this useful, please consider starring the repository. It helps others discover the project. You can also support me on <a href="https://ko-fi.com/bradsec" target="_blank" rel="noopener noreferrer">Ko-fi</a>.</p>
           <div class="dialog-actions"><button value="close">Close</button></div>

@@ -104,7 +104,8 @@ The Playwright configuration tests desktop Chromium and WebKit on an iPhone 13 p
 
 imagemarkup has no third-party runtime JavaScript dependencies. It bundles these third-party assets for offline use:
 
-- [Google Material Symbols](https://fonts.google.com/icons), licensed under the [Apache License 2.0](public/icons/material-symbols-LICENSE.txt).
+- [Lucide](https://lucide.dev), used for interface icons, licensed under ISC and MIT for Feather-derived icons. See the [bundled license](public/icons/lucide-LICENSE.txt).
+- [Google Material Symbols](https://fonts.google.com/icons), used for annotation symbols only, licensed under the [Apache License 2.0](public/icons/material-symbols-LICENSE.txt).
 - Legacy hand gesture paths retained for compatibility with existing `.imgmarkup` projects come from [Font Awesome Free](https://fontawesome.com), copyright Fonticons, Inc., and are licensed under [CC BY 4.0](public/icons/font-awesome-NOTICE.txt). They are not offered in the current symbol menu.
 - Inter, Kalam, Lato, Libre Baskerville, Merriweather, Montserrat, Open Sans, Oswald, Poppins, and Roboto, licensed under the SIL Open Font License 1.1. Individual copyright notices and license texts are in [public/fonts/licenses](public/fonts/licenses).
 - The GitHub mark from [Primer Octicons](https://github.com/primer/octicons), copyright GitHub, Inc., licensed under the [MIT License](public/icons/octicons-LICENSE.txt). Use of the GitHub logo follows [GitHub's logo guidelines](https://github.com/logos).
