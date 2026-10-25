@@ -26,16 +26,30 @@ export function mountMenus(root: HTMLElement, stageHost: HTMLElement, store: Sto
   const closeMenus = (except?: HTMLDetailsElement) => {
     for (const menu of appMenus) if (menu !== except) menu.open = false;
   };
+  const positionMenu = (menu: HTMLDetailsElement) => {
+    const summary = menu.querySelector('summary')!.getBoundingClientRect();
+    const popover = menu.querySelector<HTMLElement>('.menu-popover')!;
+    if (getComputedStyle(popover).position === 'fixed') {
+      popover.style.setProperty('--menu-left', `${summary.left}px`);
+      popover.style.setProperty('--menu-top', `${summary.bottom}px`);
+      popover.style.setProperty('--menu-width', `${popover.offsetWidth}px`);
+    } else {
+      popover.style.setProperty('--menu-left', `${Math.max(8 - summary.left, Math.min(0, innerWidth - summary.left - popover.offsetWidth - 8))}px`);
+    }
+  };
   for (const menu of appMenus) {
     // Native <details> do not close their siblings, so a second menu would stack
     // on top of the first. Close the others whenever one opens.
-    menu.addEventListener('toggle', () => { if (menu.open) closeMenus(menu); });
+    menu.addEventListener('toggle', () => { if (menu.open) { closeMenus(menu); positionMenu(menu); } });
     // Once any menu is open, hovering a sibling switches to it, like a desktop menu bar.
     menu.querySelector('summary')?.addEventListener('pointerenter', (event) => {
       if (event.pointerType !== 'mouse') return;
       if (!menu.open && appMenus.some((other) => other.open)) menu.open = true;
     });
   }
+  const positionOpenMenu = () => { for (const menu of appMenus) if (menu.open) positionMenu(menu); };
+  window.addEventListener('resize', positionOpenMenu);
+  window.addEventListener('orientationchange', positionOpenMenu);
   document.addEventListener('pointerdown', (event) => {
     if (!(event.target instanceof Element) || !event.target.closest('.app-menu')) closeMenus();
   }, { capture: true });

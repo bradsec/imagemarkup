@@ -127,6 +127,18 @@ for (const viewport of viewports) {
     for (const menu of ['File', 'Edit', 'Image', 'View', 'Help']) {
       await page.locator('.app-menu > summary').filter({ hasText: menu }).click();
       await checkOverlay(page, 'details.app-menu[open] .menu-popover');
+      const bounds = await page.locator('details.app-menu[open]').evaluate((details) => {
+        const summary = details.querySelector('summary')!.getBoundingClientRect();
+        const popover = details.querySelector('.menu-popover')!.getBoundingClientRect();
+        const header = getComputedStyle(document.querySelector('.app-header')!);
+        const fixed = getComputedStyle(details.querySelector('.menu-popover')!).position === 'fixed';
+        return { summaryLeft: summary.left, left: popover.left, right: popover.right, viewportWidth: innerWidth,
+          leftMargin: fixed ? Math.max(8, Number.parseFloat(header.paddingLeft)) : 8,
+          rightMargin: fixed ? Math.max(8, Number.parseFloat(header.paddingRight)) : 8 };
+      });
+      expect(bounds.left, menu).toBeGreaterThanOrEqual(bounds.leftMargin - 2);
+      expect(bounds.right, menu).toBeLessThanOrEqual(bounds.viewportWidth - bounds.rightMargin + 2);
+      expect(Math.abs(bounds.left - bounds.summaryLeft) <= 2 || Math.abs(bounds.right - (bounds.viewportWidth - bounds.rightMargin)) <= 2, menu).toBe(true);
       await page.keyboard.press('Escape');
     }
 

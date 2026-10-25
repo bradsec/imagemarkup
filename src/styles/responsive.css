@@ -37,14 +37,13 @@
   .app-menu summary { padding-inline: 7px; }
   .menu-popover {
     position: fixed;
-    top: var(--header-height);
-    left: max(8px, env(safe-area-inset-left));
+    top: var(--menu-top, var(--header-height));
+    left: clamp(max(8px, env(safe-area-inset-left)), var(--menu-left, 8px), calc(100vw - var(--menu-width, 0px) - max(8px, env(safe-area-inset-right))));
     max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)));
     max-height: calc(100dvh - var(--header-height) - env(safe-area-inset-bottom) - 8px);
     overflow-x: hidden;
     overflow-y: auto;
   }
-  .app-menu:nth-last-child(-n + 3) .menu-popover { right: max(8px, env(safe-area-inset-right)); left: auto; }
   .menu-popover button, .menu-popover > a { min-width: 0; white-space: normal; }
   .dialog-form label > input:not([type="checkbox"]):not([type="color"]), .dialog-form select { width: 100%; min-width: 0; }
   .dialog-form > .size-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }

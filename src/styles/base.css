@@ -114,7 +114,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .menu-popover {
   position: absolute;
   top: calc(100% - 4px);
-  left: 0;
+  left: var(--menu-left, 0px);
   display: grid;
   width: max-content;
   max-width: calc(100vw - 16px);
