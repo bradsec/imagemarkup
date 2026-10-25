@@ -406,3 +406,11 @@
 .statusbar .repo-link:hover { color: var(--accent-hover); }
 .app-version { color: var(--text-faint); }
 
+
+/* Rulers overlay the stage edges and never take pointer input, so drawing and panning work beneath them. */
+.rulers { --ruler-bg: #1b1e22; --ruler-tick: #7d8590; --ruler-text: #c9d1d9; --ruler-marker: #4aa3df; position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.rulers[hidden] { display: none; }
+.rulers .ruler, .rulers .ruler-corner { position: absolute; inset: auto; display: block; }
+.rulers .ruler-x { top: 0; left: 20px; }
+.rulers .ruler-y { top: 20px; left: 0; }
+.rulers .ruler-corner { top: 0; left: 0; width: 20px; height: 20px; border-right: 1px solid var(--ruler-tick); border-bottom: 1px solid var(--ruler-tick); background: var(--ruler-bg); box-sizing: border-box; }

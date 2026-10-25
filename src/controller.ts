@@ -12,7 +12,8 @@ import { mountProjectIo } from './io/project';
 import { icon } from './ui/icons';
 import { LAYOUT_STORAGE_KEY, mountPanels, readPanelLayout } from './ui/panels';
 import { setSelectionColor } from './render/renderer';
-import { DEFAULT_PREFERENCES, mountPreferences, readPreferences } from './ui/preferences';
+import { DEFAULT_PREFERENCES, mountPreferences, readPreferences, writePreferences } from './ui/preferences';
+import { mountRulers } from './ui/rulers';
 import { annotationBounds, resizeAnnotationToBounds } from './core/annotations';
 import { mountLayers } from './ui/layers';
 
@@ -86,7 +87,20 @@ export function startApp(root: HTMLElement): void {
   });
   const syncNumericPairs = () => { for (const sync of numericPairs) sync(); };
   const openDialog = createOpenDialog(syncNumericPairs);
-  mountPreferences(root, store, statusEl, openDialog, (value) => { preferences = value; setSelectionColor(value.selectionColor); }, () => preferences);
+  const rulers = mountRulers({ stageHost, store, getPreferences: () => preferences });
+  const rulersButton = root.querySelector<HTMLButtonElement>('[data-action="toggle-rulers"]')!;
+  const syncRulersButton = () => {
+    rulersButton.setAttribute('aria-pressed', String(preferences.showRulers));
+    rulersButton.querySelector('span')!.textContent = preferences.showRulers ? 'On' : 'Off';
+  };
+  rulersButton.addEventListener('click', () => {
+    preferences = { ...preferences, showRulers: !preferences.showRulers };
+    writePreferences(preferences);
+    syncRulersButton();
+    rulers.refresh();
+  });
+  syncRulersButton();
+  mountPreferences(root, store, statusEl, openDialog, (value) => { preferences = value; setSelectionColor(value.selectionColor); syncRulersButton(); rulers.refresh(); }, () => preferences);
   const defaultToolStyles = () => new Map<Tool, AnnotationStyle>([
     ['highlighter', { color: '#f4df57', width: 22, opacity: .5 }],
     ['pen', { color: '#ff3b30', width: 4, opacity: 1 }],
@@ -147,6 +161,8 @@ export function startApp(root: HTMLElement): void {
     if (!window.confirm('Reset panel positions, colors, and editor preferences to app defaults? Your artwork will not be changed.')) return;
     preferences = { ...DEFAULT_PREFERENCES };
     setSelectionColor(preferences.selectionColor);
+    syncRulersButton();
+    rulers.refresh();
     panelLayout = { tools: {} };
     try {
       localStorage.removeItem('imagemarkup.preferences');

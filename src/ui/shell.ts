@@ -133,6 +133,7 @@ export function renderShell(root: HTMLElement): Shell {
             <button type="button" data-action="zoom-out">Zoom out<span>-</span></button>
             <hr>
             <button type="button" data-action="toggle-overflow" aria-pressed="false">Show overflow<span>Off</span></button>
+            <button type="button" data-action="toggle-rulers" aria-pressed="false">Rulers<span>Off</span></button>
           </div></details>
           <details class="app-menu"><summary>Help</summary><div class="menu-popover">
             <button type="button" data-action="tools-guide">Tools and drawing</button>

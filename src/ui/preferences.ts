@@ -8,9 +8,10 @@ export interface EditorPreferences {
   measurementUnit: MeasurementUnit;
   measurementPpi: number;
   selectionColor: string;
+  showRulers: boolean;
 }
 
-export const DEFAULT_PREFERENCES: EditorPreferences = { measurementUnit: 'px', measurementPpi: 96, selectionColor: DEFAULT_SELECTION_COLOR };
+export const DEFAULT_PREFERENCES: EditorPreferences = { measurementUnit: 'px', measurementPpi: 96, selectionColor: DEFAULT_SELECTION_COLOR, showRulers: false };
 
 export function readPreferences(): EditorPreferences {
   try {
@@ -19,10 +20,15 @@ export function readPreferences(): EditorPreferences {
       measurementUnit: ['px', 'in', 'cm', 'mm'].includes(String(value.measurementUnit)) ? value.measurementUnit as MeasurementUnit : 'px',
       measurementPpi: Number.isFinite(value.measurementPpi) ? Math.max(36, Math.min(1200, Math.round(value.measurementPpi!))) : 96,
       selectionColor: typeof value.selectionColor === 'string' && /^#[0-9a-f]{6}$/i.test(value.selectionColor) ? value.selectionColor : DEFAULT_SELECTION_COLOR,
+      showRulers: value.showRulers === true,
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };
   }
+}
+
+export function writePreferences(preferences: EditorPreferences): void {
+  try { localStorage.setItem('imagemarkup.preferences', JSON.stringify(preferences)); } catch { /* Preferences still apply for this session. */ }
 }
 
 export function mountPreferences(root: HTMLElement, store: Store<Scene>, statusEl: HTMLElement, openDialog: (dialog: HTMLDialogElement, invoker: HTMLElement) => void, setPreferences: (value: EditorPreferences) => void, getPreferences: () => EditorPreferences): void {
@@ -48,12 +54,13 @@ export function mountPreferences(root: HTMLElement, store: Store<Scene>, statusE
   preferencesDialog.addEventListener('close', () => {
     if (preferencesDialog.returnValue !== 'apply') return;
     const preferences = {
+      ...getPreferences(),
       measurementUnit: measurementUnitInput.value as MeasurementUnit,
       measurementPpi: Math.max(36, Math.min(1200, Math.round(Number(measurementPpiInput.value) || 96))),
       selectionColor: selectionColorInput.value,
     };
     setPreferences(preferences);
-    try { localStorage.setItem('imagemarkup.preferences', JSON.stringify(preferences)); } catch { /* Preferences still apply for this session. */ }
+    writePreferences(preferences);
     store.set({});
     statusEl.textContent = 'Preferences saved';
   });
