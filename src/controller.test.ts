@@ -285,4 +285,28 @@ describe('controller regressions', () => {
     await flush();
     expect(mocks.host.setScene).toHaveBeenCalledWith(expect.objectContaining({ arrowStartHead: 'none', counterFormat: 'numeric' }), true);
   });
+
+  it('applies frame border and text watermark as one checkpointed change', async () => {
+    const root = app();
+    mocks.store!.set({ image: { source: document.createElement('canvas'), width: 100, height: 100, dataUrl: 'data:image/png;base64,AA==' } });
+    root.querySelector<HTMLButtonElement>('[data-action="frame"]')!.click();
+    const dialog = root.querySelector<HTMLDialogElement>('#frame-dialog')!;
+    dialog.querySelector<HTMLInputElement>('[name="borderWidth"]')!.value = '4';
+    dialog.querySelector<HTMLInputElement>('[name="borderColor"]')!.value = '#123456';
+    dialog.querySelector<HTMLInputElement>('[name="watermarkText"]')!.value = 'Draft';
+    mocks.host.checkpointScene.mockClear();
+    dialog.close('apply');
+    await flush();
+    expect(mocks.host.checkpointScene).toHaveBeenCalledTimes(1);
+    expect(mocks.store!.get()).toMatchObject({ border: { width: 4, color: '#123456' }, watermark: { kind: 'text', text: 'Draft' } });
+  });
+
+  it('removes only the watermark from frame settings', () => {
+    const root = app();
+    mocks.store!.set({ border: { width: 4, color: '#123456' }, watermark: { kind: 'text', text: 'Draft', size: 32, color: '#ffffff', opacity: .35, tile: false } });
+    root.querySelector<HTMLDialogElement>('#frame-dialog')!.close('remove-watermark');
+    expect(mocks.store!.get().border).toEqual({ width: 4, color: '#123456' });
+    expect(mocks.store!.get().watermark).toBeNull();
+    expect(mocks.host.checkpointScene).toHaveBeenCalledTimes(1);
+  });
 });
