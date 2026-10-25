@@ -296,9 +296,9 @@ export function renderShell(root: HTMLElement): Shell {
           <dl class="help-settings">
             <div><dt>Move and Hand</dt><dd>Move selects and transforms objects. Hand pans the canvas. Hold Space and drag to pan while using another tool.</dd></div>
             <div><dt>Shapes and strokes</dt><dd>Rectangle, Ellipse, Line, and Arrow draw geometric marks. Pen draws freehand strokes; Highlighter adds translucent marks. Click to place a default-size shape, or drag to size it.</dd></div>
-            <div><dt>Text, Step counter, and Symbol</dt><dd>Text adds editable text. Step counter places numbered, lettered, or Roman markers. Symbol places a shape from the searchable library. Click or drag to place and size them.</dd></div>
+            <div><dt>Text, Step counter, and Symbol</dt><dd>Text adds editable text; placing it opens the editor and returns to Move. Step counter places numbered, lettered, or Roman markers with their own fill, border, and bold, italic, or underlined text. Symbol places a shape from the searchable library. Click or drag to place and size them.</dd></div>
             <div><dt>Redact</dt><dd>Drag over an area to cover it with pixelation, blur, or an opaque solid color. Choose the mode in Tool options.</dd></div>
-            <div><dt>Place image and Crop</dt><dd>Place image adds a file as an editable layer. Crop selects the area to keep; drag or click for a default area, then Apply crop or Cancel.</dd></div>
+            <div><dt>Place image and Crop</dt><dd>Place image adds a file as an editable layer. Crop selects the area to keep; drag or click for a default area, then Apply crop or Cancel. Choosing an aspect ratio or Swap orientation reshapes the current crop straight away.</dd></div>
             <div><dt>Canvas placement</dt><dd>With the canvas focused, press Enter or Space to place a default-size shape, text, counter, symbol, redaction, or crop at the viewport center.</dd></div>
             <div><dt>Stroke and fill</dt><dd>Use the rail swatches or Tool options to set colors. Swap exchanges stroke and fill; Reset restores their defaults. Tool options also controls thickness, opacity, and settings for the active tool.</dd></div>
             <div><dt>Drawing modifiers</dt><dd>Hold Shift to constrain proportions when drawing or resizing, or to snap rotation to 45-degree steps. Hold Alt or Option to draw or resize from the center.</dd></div>
@@ -314,7 +314,7 @@ export function renderShell(root: HTMLElement): Shell {
             <div><dt>Resize and rotate</dt><dd>Drag selection handles to resize or rotate. Enter exact width and height in the dimensions controls, choose units in Preferences, and toggle the aspect lock as needed.</dd></div>
             <div><dt>Layers</dt><dd>Each object has a row. Show or hide it, lock it, rename it, or drag to reorder. Right-click a row for duplicate, delete, and one-step ordering; focus a row and use Alt+ArrowUp or Alt+ArrowDown to reorder.</dd></div>
             <div><dt>Duplicate, delete, undo</dt><dd>Use Edit or Ctrl/Cmd+D to duplicate a selection. Delete or Backspace removes it. Undo and Redo restore or repeat changes.</dd></div>
-            <div><dt>Image transforms</dt><dd>Image > Rotate, flip, resize changes the base image and annotations. Crop keeps the chosen area; it clips crossing layers and removes layers outside it.</dd></div>
+            <div><dt>Image transforms</dt><dd>Image > Rotate, flip, resize changes the base image and annotations; press Enter in a size field to resize. Crop keeps the chosen area; it clips crossing layers and removes layers outside it.</dd></div>
             <div><dt>Frame and watermark</dt><dd>Image > Frame and watermark adds a border or a text or image watermark to exported work.</dd></div>
           </dl>
           <div class="dialog-actions"><button value="close">Close</button></div>
@@ -324,13 +324,13 @@ export function renderShell(root: HTMLElement): Shell {
         <form method="dialog" class="dialog-form guide-dialog-content">
           <div class="dialog-heading"><h2 id="saving-guide-title" tabindex="-1">Saving and exporting</h2><p>Keep an editable project or share a flat image.</p></div>
           <dl class="help-settings">
-            <div><dt>Open image</dt><dd>Choose File > Open image, paste, or drop a file on the editor. Opening another image asks before replacing current work; Undo can restore it.</dd></div>
+            <div><dt>Open image</dt><dd>Choose File > Open image, paste, or drop a file on the editor. Opening another image asks before replacing current work; Undo can restore it. File > New project starts clean and clears undo history. Markup tools appear once an image is loaded.</dd></div>
             <div><dt>Autosave</dt><dd>The browser saves work locally and restores it on return. If saving fails, Autosave unavailable stays in the status bar until a save succeeds.</dd></div>
             <div><dt>Editable projects</dt><dd>File > Save project downloads a .imgmarkup file. Open project restores its image and layers after confirmation if work is already open.</dd></div>
             <div><dt>Project size</dt><dd>Project files have a 110 MB limit, with a 100 MB encoded image-data budget across the base image, placed images, and image watermark. An oversized image or project reports an error.</dd></div>
             <div><dt>Copy and export</dt><dd>Copy PNG sends a flattened image to the clipboard. Export image downloads PNG or JPG at 1x or 2x; JPG offers a quality control.</dd></div>
             <div><dt>Overflow and transparency</dt><dd>View > Show overflow reveals off-canvas marks and expands exports. PNG keeps transparent areas; JPG fills them white.</dd></div>
-            <div><dt>Preferences</dt><dd>File > Preferences stores measurement units, conversion resolution, and selection color in this browser. Reset settings restores editor defaults without changing artwork.</dd></div>
+            <div><dt>Preferences</dt><dd>File > Preferences stores measurement units, conversion resolution, and selection color in this browser; rulers and size fields use these units. Reset settings restores editor defaults without changing artwork.</dd></div>
           </dl>
           <div class="dialog-actions"><button value="close">Close</button></div>
         </form>
@@ -344,7 +344,7 @@ export function renderShell(root: HTMLElement): Shell {
             <div><dt>Nudge and crop</dt><dd>Arrow keys move a selection or crop by 1 pixel; Shift+Arrow moves it by 10. Enter applies a crop; Escape cancels it or returns to Move.</dd></div>
             <div><dt>Layers and selection</dt><dd>Alt+ArrowUp or Alt+ArrowDown reorders a focused layer row. Ctrl/Cmd+D duplicates a selection; Delete or Backspace removes it.</dd></div>
             <div><dt>File and edit</dt><dd>Ctrl/Cmd+N new project, Ctrl/Cmd+O open image, Ctrl/Cmd+S save project, Ctrl/Cmd+E export, Ctrl/Cmd+C copy PNG, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z redo.</dd></div>
-            <div><dt>View</dt><dd>Use the View menu to fit the image or show actual size. + and - zoom the focused canvas. The mouse wheel zooms at the pointer.</dd></div>
+            <div><dt>View</dt><dd>Use the View menu to fit the image, show actual size, or turn Rulers on in the units chosen in Preferences. + and - zoom the focused canvas. The mouse wheel zooms at the pointer.</dd></div>
           </dl>
           <div class="dialog-actions"><button value="close">Close</button></div>
         </form>
